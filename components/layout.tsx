@@ -6,10 +6,10 @@ export default function Layout({ children }: React.PropsWithChildren) {
     return (
         <>
             <Head>
-                <title>ComfyUI CI/CD</title>
+                <title>ComfyUI CI/CD Waterfall</title>
                 <meta
                     name="description"
-                    content="ComfyUI CI/CD Dashboard for running workflows."
+                    content="ComfyUI CI/CD Waterfall for running workflows."
                 ></meta>
 
                 <ThemeModeScript />

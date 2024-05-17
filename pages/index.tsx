@@ -19,7 +19,7 @@ function GitCommitsList() {
     const onPageChange = (page: number) => setCurrentPage(page)
     const router = useRouter();
     const [filterOS, setFilterOS] = React.useState<string>('Select OS')
-    const [repoFilter, setRepoFilter] = React.useState<string>('comfyanonymous/ComfyUI')
+    const [repoFilter, setRepoFilter] = React.useState<string>('Comfy-Org/ComfyUI-Mirror')
     const [branchFilter, setBranchFilter] = React.useState<string>('')
     const [commitId, setCommitId] = React.useState<string>('')
     const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')
@@ -47,7 +47,7 @@ function GitCommitsList() {
     return (
         <div style={{ padding: 20 }}>
             <h1 className="text-center text-3xl text-gray-700 mb-4">
-                Comfy Workflows CI/CD
+                Comfy Workflows CI/CD Waterfall
             </h1>
             <h3>Filters</h3>
             <div className="flex items-center gap-2 mb-4">
@@ -104,6 +104,8 @@ function GitCommitsList() {
                             <Table.HeadCell>Workflow Name</Table.HeadCell>
                             <Table.HeadCell>Github Action</Table.HeadCell>
                             <Table.HeadCell>Commit Id</Table.HeadCell>
+                            <Table.HeadCell>Commit Time</Table.HeadCell>
+                            <Table.HeadCell>Commit Message</Table.HeadCell>
                             <Table.HeadCell>Operating System</Table.HeadCell>
                             <Table.HeadCell>Output File</Table.HeadCell>
                             <Table.HeadCell>Run time</Table.HeadCell>
@@ -160,6 +162,60 @@ function GitCommitsList() {
                                                             0,
                                                             7
                                                         )}
+                                                    </a>
+                                                </Link>
+                                                <Button
+                                                    size="xs"
+                                                    onClick={() => {
+                                                        setCommitId(
+                                                            result.commit_id ||
+                                                            ''
+                                                        )
+                                                    }}
+                                                >
+                                                    <CiFilter />
+                                                </Button>
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <div className="flex items-center space-x-2">
+                                                <Link
+                                                    className="text-xs"
+                                                    href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
+                                                >
+                                                    <a
+                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                    >
+                                                        {result.commit_time}
+                                                    </a>
+                                                </Link>
+                                                <Button
+                                                    size="xs"
+                                                    onClick={() => {
+                                                        setCommitId(
+                                                            result.commit_id ||
+                                                            ''
+                                                        )
+                                                    }}
+                                                >
+                                                    <CiFilter />
+                                                </Button>
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <div className="flex items-center space-x-2">
+                                                <Link
+                                                    className="text-xs"
+                                                    href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
+                                                >
+                                                    <a
+                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                    >
+                                                        {result.commit_message}
                                                     </a>
                                                 </Link>
                                                 <Button
