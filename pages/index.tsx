@@ -57,7 +57,10 @@ function GitCommitsList() {
                 <Select
                     id="branch-select"
                     value={branchFilter}
-                    onChange={(e) => setBranchFilter(e.target.value)}
+                    onChange={(e) => {
+                        setBranchFilter(e.target.value);
+                        setCurrentPage(1);
+                    }}
                 >
                     <option value="">Select Branch</option>
                     {branchesQueryResults?.branches?.map((branch, index) => (
@@ -80,7 +83,10 @@ function GitCommitsList() {
                     id="commit-id-input"
                     label="Commit ID"
                     value={commitId}
-                    onChange={(s) => setCommitId(s)}
+                    onChange={(s) => {
+                        setCommitId(s);
+                        setCurrentPage(1);
+                    }}
                     onClear={() => setCommitId('')}
                     disabled
                 />
@@ -88,7 +94,10 @@ function GitCommitsList() {
                     id="workflow-id-input"
                     label="Workflow Name"
                     value={workflowNameFilter}
-                    onChange={(s) => setWorkflowFilter(s)}
+                    onChange={(s) => {
+                        setWorkflowFilter(s);
+                        setCurrentPage(1);
+                    }}
                     onClear={() => setWorkflowFilter('')}
                     disabled
                 />
@@ -122,12 +131,13 @@ function GitCommitsList() {
                                                 {result.workflow_name}
                                                 <Button
                                                     size="xs"
-                                                    onClick={() =>
+                                                    onClick={() => {
                                                         setWorkflowFilter(
                                                             result.workflow_name ||
                                                             ''
                                                         )
-                                                    }
+                                                        setCurrentPage(1)
+                                                    }}
                                                 >
                                                     <CiFilter />
                                                 </Button>
@@ -171,6 +181,7 @@ function GitCommitsList() {
                                                             result.commit_id ||
                                                             ''
                                                         )
+                                                        setCurrentPage(1)
                                                     }}
                                                 >
                                                     <CiFilter />
@@ -221,6 +232,7 @@ function GitCommitsList() {
                                                             result.operating_system ||
                                                             ''
                                                         )
+                                                        setCurrentPage(1)
                                                     }}
                                                 >
                                                     <CiFilter />
