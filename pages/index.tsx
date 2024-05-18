@@ -188,20 +188,9 @@ function GitCommitsList() {
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
-                                                        {result.commit_time}
+                                                        {result.commit_time !== undefined ? new Date(result.commit_time * 1000).toLocaleString() : result.commit_time}
                                                     </a>
                                                 </Link>
-                                                <Button
-                                                    size="xs"
-                                                    onClick={() => {
-                                                        setCommitId(
-                                                            result.commit_id ||
-                                                            ''
-                                                        )
-                                                    }}
-                                                >
-                                                    <CiFilter />
-                                                </Button>
                                             </div>
                                         </Table.Cell>
                                         <Table.Cell>
@@ -218,11 +207,18 @@ function GitCommitsList() {
                                                         {result.commit_message}
                                                     </a>
                                                 </Link>
+                                            </div>
+                                        </Table.Cell>
+                                        <Table.Cell>
+                                            <div className='flex items-center space-x-2'>
+                                                <span>
+                                                    {result.operating_system}
+                                                </span>
                                                 <Button
                                                     size="xs"
                                                     onClick={() => {
-                                                        setCommitId(
-                                                            result.commit_id ||
+                                                        setFilterOS(
+                                                            result.operating_system ||
                                                             ''
                                                         )
                                                     }}
@@ -230,9 +226,6 @@ function GitCommitsList() {
                                                     <CiFilter />
                                                 </Button>
                                             </div>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            {result.operating_system}
                                         </Table.Cell>
                                         <Table.Cell>
                                             <Image
