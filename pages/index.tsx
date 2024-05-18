@@ -238,7 +238,7 @@ function GitCommitsList() {
                                             />
                                         </Table.Cell>
                                         <Table.Cell>
-                                            {result.end_time && result.start_time ? calculateTimeDifferenceInMinutes(result.end_time, result.start_time) : "unknown"} minutes
+                                            {result.end_time && result.start_time ? calculateTimeDifference(result.end_time, result.start_time) : "unknown"}
                                         </Table.Cell>
                                     </Table.Row>
                                 )
@@ -257,10 +257,15 @@ function GitCommitsList() {
     )
 }
 
-function calculateTimeDifferenceInMinutes(startTime: number, endTime: number): number {
-    const differenceInSeconds = Math.abs(endTime - startTime);
-    const differenceInMinutes = differenceInSeconds / 60;
-    return parseFloat(differenceInMinutes.toFixed(1));
+function calculateTimeDifference(startTime: number, endTime: number): string {
+    const differenceInSeconds = Math.abs(endTime - startTime)
+    const difference =
+        differenceInSeconds >= 60
+            ? parseFloat((differenceInSeconds / 60).toFixed(1))
+            : differenceInSeconds
+    return differenceInSeconds >= 60
+        ? `${difference} minute`
+        : `${difference} sec`
 }
 
 export default GitCommitsList
