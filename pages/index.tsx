@@ -49,10 +49,14 @@ function GitCommitsList() {
             <Button
                 className="absolute top-4 right-4"
             >
-                Suggest Workflow
+                <Link href="https://noteforms.com/forms/workflow-suggests-wilnkf">
+                    <a>
+                        Feedback!
+                    </a>
+                </Link>
             </Button>
             <h1 className="text-center text-3xl text-gray-700 mb-4">
-                Comfy Workflows CI/CD Waterfall
+                ComfyCI Dashboard
             </h1>
             <h3>Filters</h3>
             <div className="flex items-center gap-2 mb-4">
