@@ -136,7 +136,7 @@ function GitCommitsList() {
                                         className="bg-white dark:border-gray-700 dark:bg-gray-800"
                                     >
                                         <Table.Cell>
-                                            <div className="flex items-center gap-2 mb-4">
+                                            <div className="flex text-xl items-center gap-2 mb-4">
                                                 {result.workflow_name}
                                                 <Button
                                                     size="xs"
@@ -158,7 +158,7 @@ function GitCommitsList() {
                                                 href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
                                             >
                                                 <a
-                                                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
+                                                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl " 
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                 >
@@ -173,7 +173,7 @@ function GitCommitsList() {
                                                     href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
                                                 >
                                                     <a
-                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
+                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
@@ -198,7 +198,7 @@ function GitCommitsList() {
                                             </div>
                                         </Table.Cell>
                                         <Table.Cell>
-                                            <div className="flex items-center space-x-2">
+                                            <div className="flex items-center space-x-2 text-xl ">
                                                 <Link
                                                     className="text-xs"
                                                     href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
@@ -220,7 +220,7 @@ function GitCommitsList() {
                                                     href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
                                                 >
                                                     <a
-                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
+                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
@@ -230,7 +230,7 @@ function GitCommitsList() {
                                             </div>
                                         </Table.Cell>
                                         <Table.Cell>
-                                            <div className='flex items-center space-x-2'>
+                                            <div className='flex items-center space-x-2 text-xl '>
                                                 <span>
                                                     {result.operating_system}
                                                 </span>
@@ -258,7 +258,7 @@ function GitCommitsList() {
                                                 height="256px"
                                             />
                                         </Table.Cell>
-                                        <Table.Cell>
+                                        <Table.Cell className=' text-xl '>
                                             {result.end_time && result.start_time ? calculateTimeDifference(result.end_time, result.start_time) : "unknown"}
                                         </Table.Cell>
                                     </Table.Row>
