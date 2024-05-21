@@ -46,6 +46,11 @@ function GitCommitsList() {
 
     return (
         <div style={{ padding: 20 }}>
+            <Button
+                className="absolute top-4 right-4"
+            >
+                Suggest Workflow
+            </Button>
             <h1 className="text-center text-3xl text-gray-700 mb-4">
                 Comfy Workflows CI/CD Waterfall
             </h1>
