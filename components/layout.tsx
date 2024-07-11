@@ -121,10 +121,12 @@ export default function Layout({ children }: React.PropsWithChildren) {
                 />
 
                 <ThemeModeScript />
-                <Header />
             </Head>
             <ToastContainer />
-            <main>{children}</main>
+            <main>
+                <Header />
+                {children}
+            </main>
         </>
     )
 }
