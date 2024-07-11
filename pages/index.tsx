@@ -171,7 +171,15 @@ function GitCommitsList() {
                                         >
                                             <Table.Cell>
                                                 <div className="flex text-xl items-center gap-2 mb-4">
-                                                    <Link href={`/workflow/${result.id}`}>{result.workflow_name}</Link>
+                                                    <Link passHref href={`/workflow/${result.id}`}>
+                                                        <a
+                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            {result.workflow_name}
+                                                        </a>
+                                                    </Link>
                                                     <Button
                                                         size="xs"
                                                         onClick={() => {
@@ -233,18 +241,9 @@ function GitCommitsList() {
                                             </Table.Cell>
                                             <Table.Cell>
                                                 <div className="flex items-center space-x-2 text-xl ">
-                                                    <Link
-                                                        className="text-xs"
-                                                        href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                    >
-                                                        <a
-                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {result.commit_time !== undefined ? new Date(result.commit_time * 1000).toLocaleString() : result.commit_time}
-                                                        </a>
-                                                    </Link>
+
+                                                    {result.commit_time !== undefined ? new Date(result.commit_time * 1000).toLocaleString() : result.commit_time}
+
                                                 </div>
                                             </Table.Cell>
                                             <Table.Cell>
