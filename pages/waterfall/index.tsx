@@ -50,11 +50,11 @@ function GitCommitsList() {
             return [];
         }
         const byCommit = filteredJobResults.jobResults.reduce((acc, item) => {
-            const { commit_id, operating_system, status, git_repo } = item;
+            const { commit_id, operating_system, status, git_repo, commit_message } = item;
             if (commit_id) {
                 if (!acc[commit_id]) {
                     // Initialize the entry for each commit_id with gitRepo and an empty osStatus map
-                    acc[commit_id] = { gitRepo: git_repo, osStatus: {} };
+                    acc[commit_id] = { gitRepo: git_repo, commitMessage: commit_message, osStatus: {} };
                 }
                 if (!acc[commit_id].osStatus[operating_system]) {
                     // Ensure the operating system entry is initialized as an empty array
@@ -70,6 +70,7 @@ function GitCommitsList() {
         return Object.keys(byCommit).map(commitId => ({
             commitId,
             gitRepo: byCommit[commitId].gitRepo,
+            commitMessage: byCommit[commitId].commitMessage,
             branch: byCommit[commitId].branch,
             osStatus: Object.keys(byCommit[commitId].osStatus).map(os => {
                 const statuses = byCommit[commitId].osStatus[os];
@@ -154,12 +155,12 @@ function GitCommitsList() {
                     <Table hoverable={true}>
                         <Table.Head>
                             <Table.HeadCell>Commit Hash</Table.HeadCell>
+                            <Table.HeadCell>Commit Message</Table.HeadCell>
                             <Table.HeadCell>Status</Table.HeadCell>
-                            <Table.HeadCell>Action</Table.HeadCell>
                         </Table.Head>
                         <Table.Body className="divide-y">
                             {groupedResults.map(
-                                ({ commitId, osStatus, gitRepo }, index) => (
+                                ({ commitId, osStatus, gitRepo, commitMessage }, index) => (
                                     <Table.Row
                                         key={index}
                                         className="bg-white dark:border-gray-700 dark:bg-gray-800"
@@ -195,6 +196,9 @@ function GitCommitsList() {
                                             </div>
                                         </Table.Cell>
                                         <Table.Cell>
+                                            {commitMessage}
+                                        </Table.Cell>
+                                        <Table.Cell>
                                             <div className='flex flex-row gap-1'>
                                                 {osStatus.map(({ os, status }) =>
                                                     <OSStatusButton key={os} os={os} status={status} commitId={commitId}
@@ -202,9 +206,6 @@ function GitCommitsList() {
                                                         branch={branchFilter} />
                                                 )}
                                             </div>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <Button>See Details</Button>
                                         </Table.Cell>
                                     </Table.Row>
                                 )
