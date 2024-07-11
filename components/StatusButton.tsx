@@ -2,15 +2,13 @@ import { Tooltip } from 'flowbite-react';
 import { useRouter } from 'next/router';
 
 interface OSStatusButtonProps {
-    os: string;
+    text: string;
     status: string;
-    commitId: string
-    repo: string
-    branch: string
+    onClick?: () => void;
 }
 
-export const OSStatusButton: React.FC<OSStatusButtonProps> = ({ os, status, commitId, repo, branch }) => {
-    const router = useRouter();
+export const WorkflowStatusButton: React.FC<OSStatusButtonProps> = ({ text, status, onClick }) => {
+
     let statusText = '';
     let bgColor = '';
 
@@ -32,21 +30,10 @@ export const OSStatusButton: React.FC<OSStatusButtonProps> = ({ os, status, comm
             bgColor = 'bg-gray-500';  // Default color
     }
 
-    const handleClick = () => {
-        const query = {
-            os,
-            commitId,
-            repo,
-            branch,
-        };
-        // Update the URL with new query parameters
-        router.push({ pathname: '/', query });
-    };
-
     return (
         <Tooltip content={statusText} placement="top">
-            <button className={`${bgColor} text-white py-2 px-4 rounded focus:outline-none focus:shadow-outline`} onClick={handleClick}>
-                {os}
+            <button className={`${bgColor} text-white py-2 px-4 rounded focus:outline-none focus:shadow-outline`} onClick={onClick}>
+                {text}
             </button>
         </Tooltip>
     );

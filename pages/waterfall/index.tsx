@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { CiFilter } from 'react-icons/ci'
 import { useRouter } from 'next/router'
 import { ClearableLabel } from '../../components/Labels/ClearableLabel'
-import { OSStatusButton } from '../../components/StatusButton'
+import { WorkflowStatusButton } from '../../components/StatusButton'
 
 function GitCommitsList() {
     const [currentPage, setCurrentPage] = React.useState(1)
@@ -201,9 +201,20 @@ function GitCommitsList() {
                                         <Table.Cell>
                                             <div className='flex flex-row gap-1'>
                                                 {osStatus.map(({ os, status }) =>
-                                                    <OSStatusButton key={os} os={os} status={status} commitId={commitId}
-                                                        repo={gitRepo}
-                                                        branch={branchFilter} />
+                                                    <WorkflowStatusButton key={os} text={os} status={status}
+                                                        onClick={() => {
+
+                                                            const query = {
+                                                                os,
+                                                                commitId,
+                                                                repo: gitRepo,
+                                                                branch: branchFilter,
+                                                            };
+                                                            // Update the URL with new query parameters
+                                                            router.push({ pathname: '/', query });
+
+                                                        }}
+                                                    />
                                                 )}
                                             </div>
                                         </Table.Cell>
@@ -224,10 +235,6 @@ function GitCommitsList() {
     )
 }
 
-function calculateTimeDifferenceInMinutes(startTime: number, endTime: number): number {
-    const differenceInSeconds = Math.abs(endTime - startTime);
-    const differenceInMinutes = differenceInSeconds / 60;
-    return parseFloat(differenceInMinutes.toFixed(1));
-}
+
 
 export default GitCommitsList

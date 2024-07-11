@@ -2648,3 +2648,65 @@ export const useListAllNodeVersions = <TData = Awaited<ReturnType<typeof listAll
 
 
 
+/**
+ * @summary Retrieve a specific commit by ID
+ */
+export const getWorkflowResult = (
+    workflowResultId: string,
+ options?: SecondParameter<typeof customInstance>,signal?: AbortSignal
+) => {
+      
+      
+      return customInstance<ActionJobResult>(
+      {url: `/workflowresult/${workflowResultId}`, method: 'GET', signal
+    },
+      options);
+    }
+  
+
+export const getGetWorkflowResultQueryKey = (workflowResultId: string,) => {
+    return [`/workflowresult/${workflowResultId}`] as const;
+    }
+
+    
+export const getGetWorkflowResultQueryOptions = <TData = Awaited<ReturnType<typeof getWorkflowResult>>, TError = ErrorResponse>(workflowResultId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowResult>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWorkflowResultQueryKey(workflowResultId);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWorkflowResult>>> = ({ signal }) => getWorkflowResult(workflowResultId, requestOptions, signal);
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(workflowResultId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWorkflowResult>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetWorkflowResultQueryResult = NonNullable<Awaited<ReturnType<typeof getWorkflowResult>>>
+export type GetWorkflowResultQueryError = ErrorResponse
+
+/**
+ * @summary Retrieve a specific commit by ID
+ */
+export const useGetWorkflowResult = <TData = Awaited<ReturnType<typeof getWorkflowResult>>, TError = ErrorResponse>(
+ workflowResultId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWorkflowResult>>, TError, TData>>, request?: SecondParameter<typeof customInstance>}
+
+  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } => {
+
+  const queryOptions = getGetWorkflowResultQueryOptions(workflowResultId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  query.queryKey = queryOptions.queryKey ;
+
+  return query;
+}
+
+
+
+

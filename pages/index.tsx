@@ -171,7 +171,7 @@ function GitCommitsList() {
                                         >
                                             <Table.Cell>
                                                 <div className="flex text-xl items-center gap-2 mb-4">
-                                                    {result.workflow_name}
+                                                    <Link href={`/workflow/${result.id}`}>{result.workflow_name}</Link>
                                                     <Button
                                                         size="xs"
                                                         onClick={() => {
@@ -313,7 +313,7 @@ function GitCommitsList() {
     )
 }
 
-function calculateTimeDifference(startTime: number, endTime: number): string {
+export function calculateTimeDifference(startTime: number, endTime: number): string {
     const differenceInSeconds = Math.abs(endTime - startTime)
     const difference =
         differenceInSeconds >= 60
