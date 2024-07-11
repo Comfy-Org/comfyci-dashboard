@@ -19,10 +19,13 @@ function GitCommitsList() {
     const onPageChange = (page: number) => setCurrentPage(page)
     const router = useRouter();
     const [filterOS, setFilterOS] = React.useState<string>('Select OS')
-    const [repoFilter, setRepoFilter] = React.useState<string>('Comfy-Org/ComfyUI-Mirror')
+    const [repoFilter, setRepoFilter] = React.useState<string>('')
     const [branchFilter, setBranchFilter] = React.useState<string>('')
     const [commitId, setCommitId] = React.useState<string>('')
     const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')
+
+    const prevFilters = React.useRef({ filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage });
+
     const { data: filteredJobResults, isLoading } = useGetGitcommit({
         operatingSystem: filterOS == 'Select OS' ? undefined : filterOS,
         commitId: commitId == '' ? undefined : commitId,
@@ -32,6 +35,48 @@ function GitCommitsList() {
         repoName: repoFilter,
         pageSize: 10,
     })
+
+    // Update the URL parameters when filters change
+    React.useEffect(() => {
+        // Only update the URL if the filters have actually changed
+        if (
+            filterOS !== prevFilters.current.filterOS ||
+            repoFilter !== prevFilters.current.repoFilter ||
+            branchFilter !== prevFilters.current.branchFilter ||
+            commitId !== prevFilters.current.commitId ||
+            workflowNameFilter !== prevFilters.current.workflowNameFilter ||
+            currentPage !== prevFilters.current.currentPage
+        ) {
+            const query = {
+                os: filterOS || undefined,
+                repo: repoFilter || undefined,
+                branch: branchFilter || undefined,
+                commitId: commitId || undefined,
+                workflowName: workflowNameFilter || undefined,
+                page: currentPage.toString(),
+            };
+            console.log("Updating url parameters due to filter change");
+            router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+
+            // Update the ref with the new values
+            prevFilters.current = { filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage };
+        }
+    }, [filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage, router, prevFilters]);
+
+    // Initialize filters from URL on component mount or when URL changes
+    React.useEffect(() => {
+        const query = router.query;
+        // Ensure all parameters are treated as strings, even if they are arrays
+        setFilterOS(typeof query.os === 'string' ? query.os : query.os?.[0] || 'Select OS');
+        setRepoFilter(typeof query.repo === 'string' ? query.repo : query.repo?.[0] || 'comfy-org/comfyui-mirror');
+        setBranchFilter(typeof query.branch === 'string' ? query.branch : query.branch?.[0] || 'Select Branch');
+        setCommitId(typeof query.commitId === 'string' ? query.commitId : query.commitId?.[0] || '');
+        setWorkflowFilter(typeof query.workflowName === 'string' ? query.workflowName : query.workflowName?.[0] || '');
+        setCurrentPage(parseInt(typeof query.page === 'string' ? query.page : query.page?.[0] || '1'));
+
+        console.log("query changed")
+    }, [router.query]);
+
 
     const { data: branchesQueryResults, isLoading: loadingBranchs } = useGetBranch({
         repo_name: repoFilter
@@ -46,18 +91,6 @@ function GitCommitsList() {
 
     return (
         <div style={{ padding: 20 }}>
-            <Button
-                className="absolute top-4 right-4"
-            >
-                <Link href="https://noteforms.com/forms/workflow-suggests-wilnkf">
-                    <a>
-                        Feedback!
-                    </a>
-                </Link>
-            </Button>
-            <h1 className="text-center text-3xl text-gray-700 mb-4">
-                ComfyCI Dashboard
-            </h1>
             <h3>Filters</h3>
             <div className="flex items-center gap-2 mb-4">
                 <Badge href={`https://github.com/${repoFilter}`}>
@@ -111,170 +144,172 @@ function GitCommitsList() {
                     disabled
                 />
             </div>
-            {(isLoading || loadingBranchs) ? (
-                <div className="flex justify-center items-center">
-                    <Spinner />
-                </div>
-            ) : (
-                <>
-                    <Table hoverable={true}>
-                        <Table.Head>
-                            <Table.HeadCell>Workflow Name</Table.HeadCell>
-                            <Table.HeadCell>Github Action</Table.HeadCell>
-                            <Table.HeadCell>Commit Id</Table.HeadCell>
-                            <Table.HeadCell>Commit Time</Table.HeadCell>
-                            <Table.HeadCell>Commit Message</Table.HeadCell>
-                            <Table.HeadCell>Operating System</Table.HeadCell>
-                            <Table.HeadCell>Output File</Table.HeadCell>
-                            <Table.HeadCell>Run time</Table.HeadCell>
-                        </Table.Head>
-                        <Table.Body className="divide-y">
-                            {filteredJobResults?.jobResults?.map(
-                                (result, index) => (
-                                    <Table.Row
-                                        key={index}
-                                        className="bg-white dark:border-gray-700 dark:bg-gray-800"
-                                    >
-                                        <Table.Cell>
-                                            <div className="flex text-xl items-center gap-2 mb-4">
-                                                {result.workflow_name}
-                                                <Button
-                                                    size="xs"
-                                                    onClick={() => {
-                                                        setWorkflowFilter(
-                                                            result.workflow_name ||
-                                                            ''
-                                                        )
-                                                        setCurrentPage(1)
-                                                    }}
-                                                >
-                                                    <CiFilter />
-                                                </Button>
-                                            </div>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <Link
-                                                passHref
-                                                href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
-                                            >
-                                                <a
-                                                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl " 
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                >
-                                                    Github Action
-                                                </a>
-                                            </Link>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <div className="flex items-center space-x-2">
+            {
+                (isLoading || loadingBranchs) ? (
+                    <div className="flex justify-center items-center">
+                        <Spinner />
+                    </div>
+                ) : (
+                    <>
+                        <Table hoverable={true}>
+                            <Table.Head>
+                                <Table.HeadCell>Workflow Name</Table.HeadCell>
+                                <Table.HeadCell>Github Action</Table.HeadCell>
+                                <Table.HeadCell>Commit Id</Table.HeadCell>
+                                <Table.HeadCell>Commit Time</Table.HeadCell>
+                                <Table.HeadCell>Commit Message</Table.HeadCell>
+                                <Table.HeadCell>Operating System</Table.HeadCell>
+                                <Table.HeadCell>Output File</Table.HeadCell>
+                                <Table.HeadCell>Run time</Table.HeadCell>
+                            </Table.Head>
+                            <Table.Body className="divide-y">
+                                {filteredJobResults?.jobResults?.map(
+                                    (result, index) => (
+                                        <Table.Row
+                                            key={index}
+                                            className="bg-white dark:border-gray-700 dark:bg-gray-800"
+                                        >
+                                            <Table.Cell>
+                                                <div className="flex text-xl items-center gap-2 mb-4">
+                                                    {result.workflow_name}
+                                                    <Button
+                                                        size="xs"
+                                                        onClick={() => {
+                                                            setWorkflowFilter(
+                                                                result.workflow_name ||
+                                                                ''
+                                                            )
+                                                            setCurrentPage(1)
+                                                        }}
+                                                    >
+                                                        <CiFilter />
+                                                    </Button>
+                                                </div>
+                                            </Table.Cell>
+                                            <Table.Cell>
                                                 <Link
-                                                    className="text-xs"
-                                                    href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
+                                                    passHref
+                                                    href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
                                                 >
                                                     <a
                                                         className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
-                                                        {result.commit_hash?.slice(
-                                                            0,
-                                                            7
-                                                        )}
+                                                        Github Action
                                                     </a>
                                                 </Link>
-                                                <Button
-                                                    size="xs"
-                                                    onClick={() => {
-                                                        setCommitId(
-                                                            result.commit_id ||
-                                                            ''
-                                                        )
-                                                        setCurrentPage(1)
-                                                    }}
-                                                >
-                                                    <CiFilter />
-                                                </Button>
-                                            </div>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <div className="flex items-center space-x-2 text-xl ">
-                                                <Link
-                                                    className="text-xs"
-                                                    href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                >
-                                                    <a
-                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
+                                            </Table.Cell>
+                                            <Table.Cell>
+                                                <div className="flex items-center space-x-2">
+                                                    <Link
+                                                        className="text-xs"
+                                                        href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
                                                     >
-                                                        {result.commit_time !== undefined ? new Date(result.commit_time * 1000).toLocaleString() : result.commit_time}
-                                                    </a>
-                                                </Link>
-                                            </div>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <div className="flex items-center space-x-2">
-                                                <Link
-                                                    className="text-xs"
-                                                    href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                >
-                                                    <a
-                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
+                                                        <a
+                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            {result.commit_hash?.slice(
+                                                                0,
+                                                                7
+                                                            )}
+                                                        </a>
+                                                    </Link>
+                                                    <Button
+                                                        size="xs"
+                                                        onClick={() => {
+                                                            setCommitId(
+                                                                result.commit_id ||
+                                                                ''
+                                                            )
+                                                            setCurrentPage(1)
+                                                        }}
                                                     >
-                                                        {result.commit_message}
-                                                    </a>
-                                                </Link>
-                                            </div>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <div className='flex items-center space-x-2 text-xl '>
-                                                <span>
-                                                    {result.operating_system}
-                                                </span>
-                                                <Button
-                                                    size="xs"
-                                                    onClick={() => {
-                                                        setFilterOS(
-                                                            result.operating_system ||
-                                                            ''
-                                                        )
-                                                        setCurrentPage(1)
-                                                    }}
-                                                >
-                                                    <CiFilter />
-                                                </Button>
-                                            </div>
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <Image
-                                                src={
-                                                    result.storage_file
-                                                        ?.public_url || ''
-                                                }
-                                                width="256px"
-                                                height="256px"
-                                            />
-                                        </Table.Cell>
-                                        <Table.Cell className=' text-xl '>
-                                            {result.end_time && result.start_time ? calculateTimeDifference(result.end_time, result.start_time) : "unknown"}
-                                        </Table.Cell>
-                                    </Table.Row>
-                                )
-                            )}
-                        </Table.Body>
-                    </Table>
-                    <Pagination
-                        className="mt-4"
-                        currentPage={currentPage}
-                        totalPages={filteredJobResults?.totalNumberOfPages || 1}
-                        onPageChange={onPageChange}
-                    />
-                </>
-            )}
-        </div>
+                                                        <CiFilter />
+                                                    </Button>
+                                                </div>
+                                            </Table.Cell>
+                                            <Table.Cell>
+                                                <div className="flex items-center space-x-2 text-xl ">
+                                                    <Link
+                                                        className="text-xs"
+                                                        href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
+                                                    >
+                                                        <a
+                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            {result.commit_time !== undefined ? new Date(result.commit_time * 1000).toLocaleString() : result.commit_time}
+                                                        </a>
+                                                    </Link>
+                                                </div>
+                                            </Table.Cell>
+                                            <Table.Cell>
+                                                <div className="flex items-center space-x-2">
+                                                    <Link
+                                                        className="text-xs"
+                                                        href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
+                                                    >
+                                                        <a
+                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            {result.commit_message}
+                                                        </a>
+                                                    </Link>
+                                                </div>
+                                            </Table.Cell>
+                                            <Table.Cell>
+                                                <div className='flex items-center space-x-2 text-xl '>
+                                                    <span>
+                                                        {result.operating_system}
+                                                    </span>
+                                                    <Button
+                                                        size="xs"
+                                                        onClick={() => {
+                                                            setFilterOS(
+                                                                result.operating_system ||
+                                                                ''
+                                                            )
+                                                            setCurrentPage(1)
+                                                        }}
+                                                    >
+                                                        <CiFilter />
+                                                    </Button>
+                                                </div>
+                                            </Table.Cell>
+                                            <Table.Cell>
+                                                <Image
+                                                    src={
+                                                        result.storage_file
+                                                            ?.public_url || ''
+                                                    }
+                                                    width="256px"
+                                                    height="256px"
+                                                />
+                                            </Table.Cell>
+                                            <Table.Cell className=' text-xl '>
+                                                {result.end_time && result.start_time ? calculateTimeDifference(result.end_time, result.start_time) : "unknown"}
+                                            </Table.Cell>
+                                        </Table.Row>
+                                    )
+                                )}
+                            </Table.Body>
+                        </Table>
+                        <Pagination
+                            className="mt-4"
+                            currentPage={currentPage}
+                            totalPages={filteredJobResults?.totalNumberOfPages || 1}
+                            onPageChange={onPageChange}
+                        />
+                    </>
+                )
+            }
+        </div >
     )
 }
 

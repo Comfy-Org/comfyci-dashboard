@@ -1,5 +1,6 @@
 import Head from 'next/head'
 import { ThemeModeScript } from 'flowbite-react'
+import { Header } from './Header'
 
 export default function Layout({ children }: React.PropsWithChildren) {
     return (
@@ -118,6 +119,7 @@ export default function Layout({ children }: React.PropsWithChildren) {
                 />
 
                 <ThemeModeScript />
+                <Header />
             </Head>
 
             <main>{children}</main>
