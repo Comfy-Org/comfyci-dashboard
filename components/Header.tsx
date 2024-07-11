@@ -17,11 +17,6 @@ export const Header = () => {
                         All Results
                     </a>
                 </Link>
-                <Link href="/commit">
-                    <a className="text-blue-500 hover:text-blue-700 underline hover:no-underline">
-                        Specific Workflow
-                    </a>
-                </Link>
             </div>
         </div>
     );
