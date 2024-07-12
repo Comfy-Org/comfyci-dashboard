@@ -50,11 +50,11 @@ function GitCommitsList() {
             return [];
         }
         const byCommit = filteredJobResults.jobResults.reduce((acc, item) => {
-            const { commit_id, operating_system, status, git_repo, commit_message } = item;
+            const { commit_id, operating_system, status, git_repo, commit_message, commit_time } = item;
             if (commit_id) {
                 if (!acc[commit_id]) {
                     // Initialize the entry for each commit_id with gitRepo and an empty osStatus map
-                    acc[commit_id] = { gitRepo: git_repo, commitMessage: commit_message, osStatus: {} };
+                    acc[commit_id] = { gitRepo: git_repo, commitMessage: commit_message, commitTime: commit_time, osStatus: {} };
                 }
                 if (!acc[commit_id].osStatus[operating_system]) {
                     // Ensure the operating system entry is initialized as an empty array
@@ -71,6 +71,7 @@ function GitCommitsList() {
             commitId,
             gitRepo: byCommit[commitId].gitRepo,
             commitMessage: byCommit[commitId].commitMessage,
+            commitTime: byCommit[commitId].commitTime,
             branch: byCommit[commitId].branch,
             osStatus: Object.keys(byCommit[commitId].osStatus).map(os => {
                 const statuses = byCommit[commitId].osStatus[os];
@@ -156,11 +157,13 @@ function GitCommitsList() {
                         <Table.Head>
                             <Table.HeadCell>Commit Hash</Table.HeadCell>
                             <Table.HeadCell>Commit Message</Table.HeadCell>
+                            <Table.HeadCell>Commit Time</Table.HeadCell>
                             <Table.HeadCell>Status</Table.HeadCell>
+
                         </Table.Head>
                         <Table.Body className="divide-y">
                             {groupedResults.map(
-                                ({ commitId, osStatus, gitRepo, commitMessage }, index) => (
+                                ({ commitId, osStatus, gitRepo, commitMessage, commitTime }, index) => (
                                     <Table.Row
                                         key={index}
                                         className="bg-white dark:border-gray-700 dark:bg-gray-800"
@@ -198,6 +201,10 @@ function GitCommitsList() {
                                         <Table.Cell>
                                             {commitMessage}
                                         </Table.Cell>
+                                        <Table.Row>
+                                            <Table.Cell>Commit Time</Table.Cell>
+                                            <Table.Cell>{commitTime !== undefined ? new Date(commitTime * 1000).toLocaleString() : commitTime}</Table.Cell>
+                                        </Table.Row>
                                         <Table.Cell>
                                             <div className='flex flex-row gap-1'>
                                                 {osStatus.map(({ os, status }) =>
