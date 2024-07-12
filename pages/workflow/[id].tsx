@@ -26,7 +26,6 @@ function WorkflowResultDetail() {
         }
         if (error != null)
             toast.error('An error occured. Please try again later.')
-        console.log(error)
 
     }, [error, isLoading])
 
@@ -141,7 +140,10 @@ function WorkflowResultDetail() {
                             <Table.Cell>Pytorch Version</Table.Cell>
                             <Table.Cell>{workflowResult?.pytorch_version}</Table.Cell>
                         </Table.Row>
-
+                        <Table.Row>
+                            <Table.Cell>Cuda Version</Table.Cell>
+                            <Table.Cell>{workflowResult?.cuda_version}</Table.Cell>
+                        </Table.Row>
                     </Table.Body>
                 </Table>
             </Card>
@@ -152,6 +154,7 @@ function WorkflowResultDetail() {
                 </h5>
                 <div className="flex flex-wrap">
                     <div className="w-full md:w-1/2 p-2">
+                        <div><strong>Machine Name:</strong> {workflowResult?.machine_stats?.machine_name}</div>
                         <div><strong>CPU Capacity:</strong> {workflowResult?.machine_stats?.cpu_capacity}</div>
                         <div><strong>Initial CPU:</strong> {workflowResult?.machine_stats?.initial_cpu}</div>
                         <div><strong>Disk Capacity:</strong> {workflowResult?.machine_stats?.disk_capacity}</div>
@@ -161,6 +164,7 @@ function WorkflowResultDetail() {
                         <div><strong>Memory Capacity:</strong> {workflowResult?.machine_stats?.memory_capacity}</div>
                         <div><strong>Initial RAM:</strong> {workflowResult?.machine_stats?.initial_ram}</div>
                         <div><strong>OS Version:</strong> {workflowResult?.machine_stats?.os_version}</div>
+                        <div><strong>GPU Type:</strong> {workflowResult?.machine_stats?.gpu_type}</div>
                     </div>
                     <div className="w-full md:w-1/2 p-2">
                         <div><strong>Avg VRAM:</strong> {workflowResult?.avg_vram} MB</div>

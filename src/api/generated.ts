@@ -80,6 +80,8 @@ export type PostUploadArtifactBody = {
   pr_number: string;
   /** The python version used in the run */
   python_version: string;
+  /** The pytorch version used in the run */
+  pytorch_version?: string;
   /** Repository name */
   repo: string;
   /** Unique identifier for the run */
@@ -442,12 +444,16 @@ export interface MachineStats {
   cpu_capacity?: string;
   /** Total disk capacity on the machine. */
   disk_capacity?: string;
+  /** The GPU type. eg. NVIDIA Tesla K80 */
+  gpu_type?: string;
   /** Initial CPU available before the job starts. */
   initial_cpu?: string;
   /** Initial disk available before the job starts. */
   initial_disk?: string;
   /** Initial RAM available before the job starts. */
   initial_ram?: string;
+  /** Name of the machine. */
+  machine_name?: string;
   /** Total memory on the machine. */
   memory_capacity?: string;
   /** The operating system version. eg. Ubuntu Linux 20.04 */
@@ -471,6 +477,8 @@ export interface Error {
 }
 
 export interface ActionJobResult {
+  /** Identifier of the job this result belongs to */
+  action_job_id?: string;
   /** Identifier of the run this result belongs to */
   action_run_id?: string;
   /** The author of the commit */
@@ -485,12 +493,12 @@ export interface ActionJobResult {
   commit_message?: string;
   /** The Unix timestamp when the commit was made */
   commit_time?: number;
+  /** CUDA version used */
+  cuda_version?: string;
   /** The end time of the job as a Unix timestamp. */
   end_time?: number;
   /** The repository name */
   git_repo?: string;
-  /** GPU type used */
-  gpu_type?: string;
   /** Unique identifier for the job result */
   id?: string;
   /** The user who triggered the job. */
