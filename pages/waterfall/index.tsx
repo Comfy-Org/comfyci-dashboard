@@ -202,7 +202,6 @@ function GitCommitsList() {
                                             {commitMessage}
                                         </Table.Cell>
                                         <Table.Row>
-                                            <Table.Cell>Commit Time</Table.Cell>
                                             <Table.Cell>{commitTime !== undefined ? new Date(commitTime * 1000).toLocaleString() : commitTime}</Table.Cell>
                                         </Table.Row>
                                         <Table.Cell>
