@@ -182,7 +182,7 @@ function WorkflowResultDetail() {
     );
 }
 
-function StatusToColor(status?: WorkflowRunStatus) {
+export function StatusToColor(status?: WorkflowRunStatus) {
     if (status === undefined) {
         return 'gray';
     }
@@ -198,7 +198,7 @@ function StatusToColor(status?: WorkflowRunStatus) {
     }
 }
 
-function StatusToHumanText(status?: WorkflowRunStatus) {
+export function StatusToHumanText(status?: WorkflowRunStatus) {
     if (status === undefined) {
         return 'Unknown';
     }

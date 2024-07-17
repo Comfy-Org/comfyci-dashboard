@@ -56,6 +56,8 @@ export type PostUploadArtifactBody = {
   bucket_name?: string;
   /** The path to ComfyUI logs. eg. gs://bucket-name/logs */
   comfy_logs_gcs_path?: string;
+  /** The flags used in the comfy run */
+  comfy_run_flags?: string;
   commit_hash: string;
   /** The commit message */
   commit_message: string;
@@ -485,6 +487,8 @@ export interface ActionJobResult {
   author?: string;
   /** The average VRAM used by the job */
   avg_vram?: number;
+  /** The comfy run flags. E.g. `--low-vram` */
+  comfy_run_flags?: string;
   /** The hash of the commit */
   commit_hash?: string;
   /** The ID of the commit */

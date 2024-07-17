@@ -13,6 +13,8 @@ import Link from 'next/link'
 import { CiFilter } from 'react-icons/ci'
 import { ClearableLabel } from '../components/Labels/ClearableLabel'
 import { useRouter } from 'next/router'
+import { WorkflowStatusButton } from '../components/StatusButton'
+import { StatusToColor, StatusToHumanText } from './workflow/[id]'
 
 function GitCommitsList() {
     const [currentPage, setCurrentPage] = React.useState(1)
@@ -154,6 +156,7 @@ function GitCommitsList() {
                         <Table hoverable={true}>
                             <Table.Head>
                                 <Table.HeadCell>Workflow Name</Table.HeadCell>
+                                <Table.HeadCell>Status</Table.HeadCell>
                                 <Table.HeadCell>Github Action</Table.HeadCell>
                                 <Table.HeadCell>Commit Id</Table.HeadCell>
                                 <Table.HeadCell>Commit Time</Table.HeadCell>
@@ -193,6 +196,9 @@ function GitCommitsList() {
                                                         <CiFilter />
                                                     </Button>
                                                 </div>
+                                            </Table.Cell>
+                                            <Table.Cell>
+                                                <WorkflowStatusButton text={StatusToHumanText(result?.status)} status={StatusToColor(result.status)} />
                                             </Table.Cell>
                                             <Table.Cell>
                                                 <Link
