@@ -75,8 +75,6 @@ function GitCommitsList() {
         setCommitId(typeof query.commitId === 'string' ? query.commitId : query.commitId?.[0] || '');
         setWorkflowFilter(typeof query.workflowName === 'string' ? query.workflowName : query.workflowName?.[0] || '');
         setCurrentPage(parseInt(typeof query.page === 'string' ? query.page : query.page?.[0] || '1'));
-
-        console.log("query changed")
     }, [router.query]);
 
 

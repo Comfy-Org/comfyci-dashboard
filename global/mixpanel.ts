@@ -1,39 +1,56 @@
-import mixpanel, { Query, Dict } from 'mixpanel-browser'
+import mixpanel from 'mixpanel-browser'
 
-const DEV_TOKEN = '870bb2acb59a9bd5852ef3fe3f6d13a8'
-const PROD_TOKEN = '75c9618ea1d0be347f660f92de1493b3'
-
-mixpanel.init(
-    process.env.NEXT_PUBLIC_FIREBASE_STAGE === 'prod' ? PROD_TOKEN : DEV_TOKEN,
-    { track_pageview: true, debug: true, ignore_dnt: true }
-)
-mixpanel.register({ Platform: 'Web' })
-
-let env_check =
-    process.env.NODE_ENV === 'production' ||
-    process.env.NEXT_TEST_MIXPANEL === 'true'
-
-let actions = {
-    identify: (id) => {
-        if (env_check) mixpanel.identify(id)
-    },
-    alias: (id) => {
-        if (env_check) mixpanel.alias(id)
-    },
-    track: (name, props?: Dict) => {
-        if (env_check) mixpanel.track(name, props)
-    },
-    track_links: (query: Query, name: string) => {
-        if (env_check)
-            mixpanel.track_links(query, name, {
-                referrer: document.referrer,
-            })
-    },
-    people: {
-        set: (props) => {
-            if (env_check) mixpanel.people.set(props)
-        },
-    },
+interface UserProfile {
+    $email: string | null
+    $first_name?: string
+    $last_name?: string
+    $phone?: string
+    [key: string]: any
 }
 
-export let Mixpanel = actions
+class MixpanelAnalytics {
+    private isProduction: boolean
+
+    constructor() {
+        this.isProduction = process.env.NEXT_PUBLIC_ENV === 'production'
+
+        if (this.isProduction && process.env.NEXT_PUBLIC_MIXPANEL_KEY) {
+            mixpanel.init(process.env.NEXT_PUBLIC_MIXPANEL_KEY, {
+                debug: true,
+                track_pageview: true,
+                persistence: 'localStorage',
+            })
+        }
+    }
+
+    public track(event: string, properties?: object): void {
+        if (this.isProduction) {
+            mixpanel.track(event, properties)
+        } else {
+            console.log(
+                `Mixpanel Track - Event: ${event}, Properties: ${JSON.stringify(properties)}`
+            )
+        }
+    }
+
+    public identify(distinctId: string): void {
+        if (this.isProduction) {
+            mixpanel.identify(distinctId)
+        } else {
+            console.log(`Mixpanel Identify - Distinct ID: ${distinctId}`)
+        }
+    }
+
+    public setProfile(updates: UserProfile): void {
+        if (this.isProduction) {
+            mixpanel.people.set(updates)
+        } else {
+            console.log(
+                `Mixpanel Set Profile - Updates: ${JSON.stringify(updates)}`
+            )
+        }
+    }
+}
+
+const analytic = new MixpanelAnalytics()
+export default analytic
