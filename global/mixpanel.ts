@@ -14,8 +14,7 @@ class MixpanelAnalytics {
     constructor() {
         this.isProduction = process.env.NEXT_PUBLIC_ENV === 'production'
 
-        if (this.isProduction && process.env.NEXT_PUBLIC_MIXPANEL_KEY) {\
-            console.log('Mixpanel Init')
+        if (this.isProduction && process.env.NEXT_PUBLIC_MIXPANEL_KEY) {
             mixpanel.init(process.env.NEXT_PUBLIC_MIXPANEL_KEY, {
                 debug: true,
                 track_pageview: true,
