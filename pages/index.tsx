@@ -15,6 +15,7 @@ import { ClearableLabel } from '../components/Labels/ClearableLabel'
 import { useRouter } from 'next/router'
 import { WorkflowStatusButton } from '../components/StatusButton'
 import { StatusToColor, StatusToHumanText } from './workflow/[id]'
+import analytic from '../global/mixpanel'
 
 function GitCommitsList() {
     const [currentPage, setCurrentPage] = React.useState(1)
@@ -101,6 +102,7 @@ function GitCommitsList() {
                     value={branchFilter}
                     onChange={(e) => {
                         setBranchFilter(e.target.value);
+                        analytic.track('Change Branch Filter', { branch: e.target.value });
                         setCurrentPage(1);
                     }}
                 >
