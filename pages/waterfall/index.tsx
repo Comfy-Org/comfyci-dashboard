@@ -20,7 +20,7 @@ function GitCommitsList() {
     const onPageChange = (page: number) => setCurrentPage(page)
     const router = useRouter();
     const [filterOS, setFilterOS] = React.useState<string>('Select OS')
-    const [repoFilter, setRepoFilter] = React.useState<string>('comfy-org/ComfyUI-Mirror')
+    const [repoFilter, setRepoFilter] = React.useState<string>('comfyanonymous/ComfyUI')
     const [branchFilter, setBranchFilter] = React.useState<string>('master')
     const [commitId, setCommitId] = React.useState<string>('')
     const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')

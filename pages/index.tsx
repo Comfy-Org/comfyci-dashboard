@@ -71,7 +71,7 @@ function GitCommitsList() {
         const query = router.query;
         // Ensure all parameters are treated as strings, even if they are arrays
         setFilterOS(typeof query.os === 'string' ? query.os : query.os?.[0] || 'Select OS');
-        setRepoFilter(typeof query.repo === 'string' ? query.repo : query.repo?.[0] || 'comfy-org/comfyui-mirror');
+        setRepoFilter(typeof query.repo === 'string' ? query.repo : query.repo?.[0] || 'comfyanonymous/ComfyUI');
         setBranchFilter(typeof query.branch === 'string' ? query.branch : query.branch?.[0] || 'Select Branch');
         setCommitId(typeof query.commitId === 'string' ? query.commitId : query.commitId?.[0] || '');
         setWorkflowFilter(typeof query.workflowName === 'string' ? query.workflowName : query.workflowName?.[0] || '');
