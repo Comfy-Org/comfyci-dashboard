@@ -10,20 +10,19 @@ Built using NextJS.
 
 Install [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) + [Eslint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) extensions.
 
-`.vscode/settings.json` is set up in the workspace to lint + format code on save.
+`.vscode/settings.json.default` is available, it is set up in the workspace to lint + format code on save. Copy to `settings.json` to use it.
 
 ### Local Development
 
-Run the development server
-
-```bash
-git checkout dev
-brew install pnpm
-pnpm install
-pnpm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Install prereqs:
+    - Clone this repo
+    - install NodeJS: https://nodejs.org/en/download/package-manager/current
+    - Install pnpm: https://pnpm.io/installation
+    - open new terminal install (pnpm doesn't add self to path instantly) (note VS Code terminal has persistence that will screw you here)
+    - `pnpm install`
+- Actually run:
+    - `pnpm run dev`
+    - Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
 ### Generate Code Stub based on OpenAPI Spec
 
