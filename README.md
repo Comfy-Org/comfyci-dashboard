@@ -22,6 +22,9 @@ Install [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.pr
     - Install pnpm: https://pnpm.io/installation
     - open new terminal install (pnpm doesn't add self to path instantly) (note VS Code terminal has persistence that will screw you here)
     - `pnpm install`
+- Setup:
+    - Copy `.env.local.example` to `.env.local` and configure it
+    - **TODO: I think the example file is wrong and I don't know what it's meant to be**
 - Actually run:
     - `pnpm run dev`
     - Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
