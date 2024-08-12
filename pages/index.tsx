@@ -44,14 +44,12 @@ function GitCommitsList() {
     // Update the URL parameters when filters change
     React.useEffect(() => {
         // Only update the URL if the filters have actually changed
-        if (
-            filterOS !== prevFilters.current.filterOS ||
+        if (filterOS !== prevFilters.current.filterOS ||
             repoFilter !== prevFilters.current.repoFilter ||
             branchFilter !== prevFilters.current.branchFilter ||
             commitId !== prevFilters.current.commitId ||
             workflowNameFilter !== prevFilters.current.workflowNameFilter ||
-            currentPage !== prevFilters.current.currentPage
-        ) {
+            currentPage !== prevFilters.current.currentPage) {
             const query = {
                 os: filterOS || undefined,
                 repo: repoFilter || undefined,
