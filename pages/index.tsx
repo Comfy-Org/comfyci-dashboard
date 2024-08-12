@@ -17,13 +17,15 @@ import { WorkflowStatusButton } from '../components/StatusButton'
 import { StatusToColor, StatusToHumanText } from './workflow/[id]'
 import analytic from '../global/mixpanel'
 
+const DEFAULT_REPO = 'comfyanonymous/ComfyUI'
+
 function GitCommitsList() {
     const [currentPage, setCurrentPage] = React.useState(1)
     const onPageChange = (page: number) => setCurrentPage(page)
     const router = useRouter();
     const [filterOS, setFilterOS] = React.useState<string>('Select OS')
-    const [repoFilter, setRepoFilter] = React.useState<string>('')
-    const [branchFilter, setBranchFilter] = React.useState<string>('')
+    const [repoFilter, setRepoFilter] = React.useState<string>(DEFAULT_REPO)
+    const [branchFilter, setBranchFilter] = React.useState<string>('Select Branch')
     const [commitId, setCommitId] = React.useState<string>('')
     const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')
 
@@ -58,7 +60,7 @@ function GitCommitsList() {
                 workflowName: workflowNameFilter || undefined,
                 page: currentPage.toString(),
             };
-            console.log("Updating url parameters due to filter change");
+            console.log(`Updating url parameters due to filter change, ${JSON.stringify(query)} vs ${JSON.stringify(prevFilters.current)}`)
             router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
 
             // Update the ref with the new values
@@ -71,7 +73,7 @@ function GitCommitsList() {
         const query = router.query;
         // Ensure all parameters are treated as strings, even if they are arrays
         setFilterOS(typeof query.os === 'string' ? query.os : query.os?.[0] || 'Select OS');
-        setRepoFilter(typeof query.repo === 'string' ? query.repo : query.repo?.[0] || 'comfyanonymous/ComfyUI');
+        setRepoFilter(typeof query.repo === 'string' ? query.repo : query.repo?.[0] || DEFAULT_REPO);
         setBranchFilter(typeof query.branch === 'string' ? query.branch : query.branch?.[0] || 'Select Branch');
         setCommitId(typeof query.commitId === 'string' ? query.commitId : query.commitId?.[0] || '');
         setWorkflowFilter(typeof query.workflowName === 'string' ? query.workflowName : query.workflowName?.[0] || '');

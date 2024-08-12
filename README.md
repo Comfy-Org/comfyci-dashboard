@@ -10,7 +10,9 @@ Built using NextJS.
 
 Install [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) + [Eslint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) extensions.
 
-`.vscode/settings.json.default` is available, it is set up in the workspace to lint + format code on save. Copy to `settings.json` to use it.
+- `.vscode/settings.json.default` is available, it is set up in the workspace to lint + format code on save.
+    - Copy to `settings.json` to use it
+    - But also maybe don't because the existing code doesn't stick to that formatter at all
 
 ### Local Development
 
