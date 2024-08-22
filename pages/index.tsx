@@ -38,7 +38,7 @@ function GitCommitsList() {
         branch: branchFilter == 'Select Branch' ? undefined : branchFilter,
         page: currentPage,
         repoName: repoFilter,
-        pageSize: 10,
+        pageSize: 30,
     })
 
     // Update the URL parameters when filters change
