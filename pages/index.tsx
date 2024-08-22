@@ -271,7 +271,7 @@ function GitCommitsList() {
                                             <Table.Cell>
                                                 <div className='flex items-center space-x-2 text-xl '>
                                                     <span>
-                                                        {result.operating_system}
+                                                        {result.operating_system} python {result?.python_version}
                                                     </span>
                                                     <Button
                                                         size="xs"
