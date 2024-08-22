@@ -293,8 +293,8 @@ function GitCommitsList() {
                                                         result.storage_file
                                                             ?.public_url || ''
                                                     }
-                                                    width="256px"
-                                                    height="256px"
+                                                    width="128px"
+                                                    height="128px"
                                                 />
                                             </Table.Cell>
                                             <Table.Cell className=' text-xl '>
