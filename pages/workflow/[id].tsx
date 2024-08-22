@@ -73,7 +73,7 @@ function WorkflowResultDetail() {
                             <Table.Cell><a
                                 className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
                                 href={`https://github.com/${workflowResult.git_repo}/commit/${workflowResult.commit_hash}`}>
-                                {workflowResult?.commit_id}
+                                {workflowResult?.commit_hash}
                             </a>
                             </Table.Cell>
                         </Table.Row>
