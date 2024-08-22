@@ -203,7 +203,7 @@ function GitCommitsList() {
                                             <Table.Cell>
                                                 <Link
                                                     passHref
-                                                    href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}/job/${result.action_job_id}`}
+                                                    href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
                                                 >
                                                     <a
                                                         className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
