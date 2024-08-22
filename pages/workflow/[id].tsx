@@ -117,7 +117,7 @@ function WorkflowResultDetail() {
                                 className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                href={`https://github.com/${workflowResult.git_repo}/actions/runs/${workflowResult.action_run_id}`}
+                                href={`https://github.com/${workflowResult.git_repo}/actions/runs/${workflowResult.action_run_id}/job/${workflowResult.action_job_id}`}
                             >
                                 Github Action Run
                             </a></Table.Cell>
