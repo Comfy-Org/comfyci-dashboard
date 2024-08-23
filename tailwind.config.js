@@ -1,5 +1,4 @@
 /** @type {import('tailwindcss').Config} */
-const colors = require('tailwindcss/colors')
 
 module.exports = {
     content: [
@@ -8,23 +7,23 @@ module.exports = {
         'node_modules/flowbite-react/lib/esm/**/*.js',
     ],
     theme: {
-        extend: {},
-        colors: {
-            'button-rose': '#E6BCB5',
-            'button-grass': '#E4E3AC',
-            'button-sky': '#B8C8CB',
-            'background-tint': '#FAF7F2',
-            'comfy-bg': '#202020',
-            'secondary-dirt': '#EDDCC0',
-            'secondary-pink': '#FFD3B8',
-            'secondary-grey': '#D9D9D9',
-            'black-regular': '#000000',
-            'primary-regular': '#D78190',
-            'primary-dark': '#C76D7E',
-            black: '#000000',
-            'grey-regular': '#2D353F',
-            'bright-charcoal': '#A4C4D2',
-            ...colors,
+        extend: {
+            colors: {
+                'button-rose': '#E6BCB5',
+                'button-grass': '#E4E3AC',
+                'button-sky': '#B8C8CB',
+                'background-tint': '#FAF7F2',
+                'comfy-bg': '#202020',
+                'secondary-dirt': '#EDDCC0',
+                'secondary-pink': '#FFD3B8',
+                'secondary-grey': '#D9D9D9',
+                'black-regular': '#000000',
+                'primary-regular': '#D78190',
+                'primary-dark': '#C76D7E',
+                black: '#000000',
+                'grey-regular': '#2D353F',
+                'bright-charcoal': '#A4C4D2'
+            },
         },
         fontFamily: {
             sans: ['"glacial-indifference-regular"', 'sans-serif'],
