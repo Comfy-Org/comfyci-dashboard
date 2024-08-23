@@ -131,6 +131,7 @@ function WorkflowResultDetail() {
                 <div className="flex flex-wrap">
                     <div className="w-full md:w-1/2 p-2">
                         <div><strong>Machine Name:</strong> {workflowResult?.machine_stats?.machine_name}</div>
+                        <div><strong>OS Version:</strong> {workflowResult?.machine_stats?.os_version}</div>
                         <div><strong>CPU Capacity:</strong> {workflowResult?.machine_stats?.cpu_capacity}</div>
                         <div><strong>Initial CPU:</strong> {workflowResult?.machine_stats?.initial_cpu}</div>
                         <div><strong>Disk Capacity:</strong> {workflowResult?.machine_stats?.disk_capacity}</div>
@@ -139,14 +140,11 @@ function WorkflowResultDetail() {
                     <div className="w-full md:w-1/2 p-2">
                         <div><strong>Memory Capacity:</strong> {workflowResult?.machine_stats?.memory_capacity}</div>
                         <div><strong>Initial RAM:</strong> {workflowResult?.machine_stats?.initial_ram}</div>
-                        <div><strong>OS Version:</strong> {workflowResult?.machine_stats?.os_version}</div>
                         <div><strong>GPU Type:</strong> {workflowResult?.machine_stats?.gpu_type}</div>
-                    </div>
-                    <div className="w-full md:w-1/2 p-2">
                         <div><strong>Avg VRAM:</strong> {workflowResult?.avg_vram} MB</div>
                         <div><strong>Peak VRAM:</strong> {workflowResult?.peak_vram} MB</div>
                     </div>
-                    <div className="w-full md:w-full p-2">
+                    <div className="w-full md:w-1/2 p-2">
                         <div><strong>Pip Freeze:</strong></div>
                         <LongTextPreview text={workflowResult?.machine_stats?.pip_freeze || ''} />
                     </div>
