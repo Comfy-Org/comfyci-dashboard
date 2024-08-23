@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import React from "react";
 import Image from "next/image";
 import { WorkflowStatusButton } from "../../components/StatusButton";
+import UsageGraph from "../../components/UsageGraph";
 import { calculateTimeDifference } from "..";
 
 function WorkflowResultDetail() {
@@ -171,9 +172,14 @@ function WorkflowResultDetail() {
                     <div className="w-full md:w-full p-2">
                         <div><strong>Pip Freeze:</strong> {workflowResult?.machine_stats?.pip_freeze}</div>
                     </div>
-                    <div className="w-full md:w-full p-2">
-                        <div><strong>VRAM Time Series:</strong> {JSON.stringify(workflowResult?.machine_stats?.vram_time_series)}</div>
-                    </div>
+                </div>
+            </Card>
+            <Card>
+                <h5 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-4">
+                    VRAM Usage Over Time
+                </h5>
+                <div className="w-full">
+                    <UsageGraph data={workflowResult?.machine_stats?.vram_time_series || {}} />
                 </div>
             </Card>
         </div>
