@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const UsageGraph = ({ data }) => {
     const parsedData = Object.entries(data).map(([time, mem]) => ({
-        time: parseInt(time),
+        time: parseInt(time.split(' ')[0]),
         mem: parseInt((mem as string).split(' ')[0])
     }));
 
@@ -14,7 +14,7 @@ const UsageGraph = ({ data }) => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
                         dataKey="time"
-                        label={{ value: 'Time', position: 'insideBottomRight', offset: -10 }}
+                        label={{ value: 'Time (Seconds)', position: 'insideBottomRight', offset: -10 }}
                         tick={{ fontSize: 12 }}
                         interval={'preserveStartEnd'}
                     />
