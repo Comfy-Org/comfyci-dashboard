@@ -6,6 +6,7 @@ import React from "react";
 import Image from "next/image";
 import { WorkflowStatusButton } from "../../components/StatusButton";
 import UsageGraph from "../../components/UsageGraph";
+import LongTextPreview from "../../components/LongTextPreview";
 import { calculateTimeDifference } from "..";
 
 function WorkflowResultDetail() {
@@ -170,7 +171,8 @@ function WorkflowResultDetail() {
                         <div><strong>Peak VRAM:</strong> {workflowResult?.peak_vram} MB</div>
                     </div>
                     <div className="w-full md:w-full p-2">
-                        <div><strong>Pip Freeze:</strong> {workflowResult?.machine_stats?.pip_freeze}</div>
+                        <div><strong>Pip Freeze:</strong></div>
+                        <LongTextPreview text={workflowResult?.machine_stats?.pip_freeze || ''} />
                     </div>
                 </div>
             </Card>
