@@ -1,5 +1,4 @@
 import { Tooltip } from 'flowbite-react';
-import { useRouter } from 'next/router';
 
 interface OSStatusButtonProps {
     text: string;

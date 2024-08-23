@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import Head from 'next/head'
 import { ThemeModeScript } from 'flowbite-react'
 import { Header } from './Header'
@@ -5,6 +6,10 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 export default function Layout({ children }: React.PropsWithChildren) {
+    useEffect(() => {
+      document.body.classList.add('dark');
+       document.body.classList.add('dark:bg-gray-900');
+    }, []);
     return (
         <>
             <Head>

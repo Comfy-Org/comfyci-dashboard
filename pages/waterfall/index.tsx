@@ -102,7 +102,7 @@ function GitCommitsList() {
 
 
     return (
-        <div style={{ padding: 20 }}>
+        <div style={{ padding: 20 }} className="dark:text-white">
             <h3>Filters</h3>
             <div className="flex items-center gap-2 mb-4">
                 <Badge href={`https://github.com/${repoFilter}`}>

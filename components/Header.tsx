@@ -3,7 +3,7 @@ import Link from "next/link"
 export const Header = () => {
     return (
         <div style={{ padding: 20 }}>
-            <h1 className="text-center text-3xl text-gray-700 mb-4">
+            <h1 className="text-center text-3xl text-gray-700 dark:text-gray-200 mb-4">
                 Comfy Workflows CI/CD
             </h1>
             <div className="flex justify-center gap-4">

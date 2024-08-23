@@ -6,7 +6,7 @@ const LongTextPreview = ({ text, previewLines = 1 }) => {
     const preview = lines.slice(0, previewLines).join('\n');
 
     return (
-        <div className="border rounded-md p-2 bg-gray-50">
+        <div className="border rounded-md p-2 bg-gray-50 dark:bg-gray-900">
             <pre className="whitespace-pre-wrap break-words">
                 {isExpanded ? text : preview}
                 {lines.length > previewLines && !isExpanded && '...'}
@@ -14,7 +14,7 @@ const LongTextPreview = ({ text, previewLines = 1 }) => {
             {lines.length > previewLines && (
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="mt-2 text-blue-600 hover:text-blue-800 underline"
+                    className="mt-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-600 underline"
                 >
                     {isExpanded ? 'Show Less' : 'Show More'}
                 </button>

@@ -36,7 +36,7 @@ function WorkflowResultDetail() {
 
     return (
         <div className="space-y-6 p-10">
-            <div className="bg-white shadow rounded-lg p-4">
+            <div className="bg-white dark:bg-gray-900 shadow rounded-lg p-4">
                 <div className="flex flex-col items-center justify-center sm:flex-row gap-2">
                     <div>
                         {workflowResult?.storage_file?.public_url && (
@@ -148,7 +148,7 @@ function WorkflowResultDetail() {
                 </Table>
             </Card>
 
-            <Card>
+            <Card className="text-black dark:text-white">
                 <h5 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
                     Machine Stats
                 </h5>
