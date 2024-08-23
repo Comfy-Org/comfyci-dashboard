@@ -3,9 +3,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const UsageGraph = ({ data }) => {
     const parsedData = Object.entries(data).map(([time, mem]) => ({
-        time: parseInt(time.split(' ')[0]),
+        time: parseFloat(time.split(' ')[0]),
         mem: parseInt((mem as string).split(' ')[0])
-    }));
+    })).sort((a, b) => a.time - b.time);
 
     return (
         <div className="w-full">
