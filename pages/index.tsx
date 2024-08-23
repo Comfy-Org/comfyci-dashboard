@@ -171,14 +171,15 @@ function GitCommitsList() {
                                         >
                                             <Table.Cell>
                                                 <div className="flex text-xl items-center gap-2 mb-4">
-                                                    <Link passHref href={`/workflow/${result.id}`}>
-                                                        <a
-                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {result.workflow_name}
-                                                        </a>
+                                                    <Link
+                                                        passHref
+                                                        href={`/workflow/${result.id}`}
+                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
+                                                        target="_blank"
+                                                        rel="noopener noreferrer">
+
+                                                        {result.workflow_name}
+
                                                     </Link>
                                                     <Button
                                                         size="xs"
@@ -201,14 +202,12 @@ function GitCommitsList() {
                                                 <Link
                                                     passHref
                                                     href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
-                                                >
-                                                    <a
-                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
+                                                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
+                                                    target="_blank"
+                                                    rel="noopener noreferrer">
+                                                    
                                                         Github Action
-                                                    </a>
+                                                    
                                                 </Link>
                                             </Table.Cell>
                                             <Table.Cell>
@@ -216,17 +215,14 @@ function GitCommitsList() {
                                                     <Link
                                                         className="text-xs"
                                                         href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                    >
-                                                        <a
-                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {result.commit_hash?.slice(
-                                                                0,
-                                                                7
-                                                            )}
-                                                        </a>
+                                                        target="_blank"
+                                                        rel="noopener noreferrer">
+
+                                                        {result.commit_hash?.slice(
+                                                            0,
+                                                            7
+                                                        )}
+
                                                     </Link>
                                                     <Button
                                                         size="xs"
@@ -254,14 +250,11 @@ function GitCommitsList() {
                                                     <Link
                                                         className="text-xs"
                                                         href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                    >
-                                                        <a
-                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {result.commit_message}
-                                                        </a>
+                                                        target="_blank"
+                                                        rel="noopener noreferrer">
+
+                                                        {result.commit_message}
+
                                                     </Link>
                                                 </div>
                                             </Table.Cell>
@@ -312,7 +305,7 @@ function GitCommitsList() {
                 )
             }
         </div >
-    )
+    );
 }
 
 export function calculateTimeDifference(startTime: number, endTime: number): string {

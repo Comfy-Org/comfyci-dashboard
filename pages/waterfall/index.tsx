@@ -173,17 +173,14 @@ function GitCommitsList() {
                                                 <Link
                                                     className="text-xs"
                                                     href={`https://github.com/${gitRepo}/commit/${commitHash}`}
-                                                >
-                                                    <a
-                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
-                                                        {commitHash?.slice(
-                                                            0,
-                                                            7
-                                                        )}
-                                                    </a>
+                                                    target="_blank"
+                                                    rel="noopener noreferrer">
+
+                                                    {commitHash?.slice(
+                                                        0,
+                                                        7
+                                                    )}
+
                                                 </Link>
                                                 <Button
                                                     size="xs"
@@ -238,7 +235,7 @@ function GitCommitsList() {
                 </>
             )}
         </div>
-    )
+    );
 }
 
 export default GitCommitsList
