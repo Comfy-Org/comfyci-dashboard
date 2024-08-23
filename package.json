@@ -29,7 +29,8 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-icons": "^5.0.1",
-    "react-toastify": "^9.0.8"
+    "react-toastify": "^9.0.8",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@babel/core": "7.19.3",
