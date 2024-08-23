@@ -10,15 +10,19 @@ export const Header = () => {
             </h1>
 
             <div className="flex justify-center gap-4">
-                <Link href="/waterfall">
-                    <a className="text-blue-500 hover:text-blue-700 underline hover:no-underline">
+                <Link
+                    href="/waterfall"
+                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline">
+                    
                         Waterfall
-                    </a>
+                    
                 </Link>
-                <Link href="/">
-                    <a className="text-blue-500 hover:text-blue-700 underline hover:no-underline">
+                <Link
+                    href="/"
+                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline">
+                    
                         All Results
-                    </a>
+                    
                 </Link>
             </div>
         </div>

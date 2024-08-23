@@ -1,21 +1,21 @@
-import React from 'react'
-import { useGetBranch, useGetGitcommit } from '../src/api/generated'
 import {
     Badge,
     Button,
-    Select,
-    Table,
     Pagination,
+    Select,
     Spinner,
+    Table,
 } from 'flowbite-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
+import React from 'react'
 import { CiFilter } from 'react-icons/ci'
 import { ClearableLabel } from '../components/Labels/ClearableLabel'
-import { useRouter } from 'next/router'
 import { WorkflowStatusButton } from '../components/StatusButton'
-import { StatusToColor, StatusToHumanText } from './workflow/[id]'
 import analytic from '../global/mixpanel'
+import { useGetBranch, useGetGitcommit } from '../src/api/generated'
+import { StatusToColor, StatusToHumanText } from './workflow/[id]'
 
 const DEFAULT_REPO = 'comfyanonymous/ComfyUI'
 
@@ -171,14 +171,15 @@ function GitCommitsList() {
                                         >
                                             <Table.Cell>
                                                 <div className="flex text-xl items-center gap-2 mb-4">
-                                                    <Link passHref href={`/workflow/${result.id}`}>
-                                                        <a
-                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {result.workflow_name}
-                                                        </a>
+                                                    <Link
+                                                        passHref
+                                                        href={`/workflow/${result.id}`}
+                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
+                                                        target="_blank"
+                                                        rel="noopener noreferrer">
+
+                                                        {result.workflow_name}
+
                                                     </Link>
                                                     <Button
                                                         size="xs"
@@ -201,14 +202,12 @@ function GitCommitsList() {
                                                 <Link
                                                     passHref
                                                     href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
-                                                >
-                                                    <a
-                                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
+                                                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
+                                                    target="_blank"
+                                                    rel="noopener noreferrer">
+                                                    
                                                         Github Action
-                                                    </a>
+                                                    
                                                 </Link>
                                             </Table.Cell>
                                             <Table.Cell>
@@ -216,17 +215,14 @@ function GitCommitsList() {
                                                     <Link
                                                         className="text-xs"
                                                         href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                    >
-                                                        <a
-                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {result.commit_hash?.slice(
-                                                                0,
-                                                                7
-                                                            )}
-                                                        </a>
+                                                        target="_blank"
+                                                        rel="noopener noreferrer">
+
+                                                        {result.commit_hash?.slice(
+                                                            0,
+                                                            7
+                                                        )}
+
                                                     </Link>
                                                     <Button
                                                         size="xs"
@@ -254,14 +250,11 @@ function GitCommitsList() {
                                                     <Link
                                                         className="text-xs"
                                                         href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                    >
-                                                        <a
-                                                            className="text-blue-500 hover:text-blue-700 underline hover:no-underline text-xl "
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            {result.commit_message}
-                                                        </a>
+                                                        target="_blank"
+                                                        rel="noopener noreferrer">
+
+                                                        {result.commit_message}
+
                                                     </Link>
                                                 </div>
                                             </Table.Cell>
@@ -290,8 +283,9 @@ function GitCommitsList() {
                                                         result.storage_file
                                                             ?.public_url || ''
                                                     }
-                                                    width="128px"
-                                                    height="128px"
+                                                    alt='output file'
+                                                    width={128}
+                                                    height={128}
                                                 />
                                             </Table.Cell>
                                             <Table.Cell className=' text-xl '>
@@ -312,7 +306,7 @@ function GitCommitsList() {
                 )
             }
         </div >
-    )
+    );
 }
 
 export function calculateTimeDifference(startTime: number, endTime: number): string {
