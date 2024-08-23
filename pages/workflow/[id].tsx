@@ -69,34 +69,13 @@ function WorkflowResultDetail() {
                             <Table.Cell>{workflowResult?.workflow_name}</Table.Cell>
                         </Table.Row>
                         <Table.Row>
-                            <Table.Cell>Commit ID</Table.Cell>
+                            <Table.Cell>Commit</Table.Cell>
                             <Table.Cell><a
                                 className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
                                 href={`https://github.com/${workflowResult.git_repo}/commit/${workflowResult.commit_hash}`}>
-                                {workflowResult?.commit_hash}
-                            </a>
+                                {workflowResult.commit_time !== undefined ? new Date(workflowResult.commit_time * 1000).toLocaleString() : workflowResult.commit_time}
+                            </a> - {workflowResult?.commit_message}
                             </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell>Commit Message</Table.Cell>
-                            <Table.Cell>{workflowResult?.commit_message}</Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell>Commit Time</Table.Cell>
-                            <Table.Cell>{workflowResult.commit_time !== undefined ? new Date(workflowResult.commit_time * 1000).toLocaleString() : workflowResult.commit_time}</Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell>PR Number</Table.Cell>
-                            <Table.Cell>
-                                {workflowResult?.pr_number ?? <a
-                                    className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
-                                    href={`https://github.com/${workflowResult.git_repo}/pull/${workflowResult.pr_number}`}></a>
-                                }
-                            </Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell>Author</Table.Cell>
-                            <Table.Cell>{workflowResult?.author}</Table.Cell>
                         </Table.Row>
                         <Table.Row>
                             <Table.Cell>Repository</Table.Cell>
@@ -107,20 +86,14 @@ function WorkflowResultDetail() {
                                     rel="noopener noreferrer"
                                     href={`https://github.com/${workflowResult.git_repo}`}
                                 >{workflowResult?.git_repo}</a>
+                                {workflowResult?.pr_number ?? <span>
+                                        <a
+                                        className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
+                                        href={`https://github.com/${workflowResult.git_repo}/pull/${workflowResult.pr_number}`}>{workflowResult.pr_number}</a> - {workflowResult?.author}
+                                    </span>
+                                }
 
                             </Table.Cell>
-                        </Table.Row>
-
-                        <Table.Row>
-                            <Table.Cell>Github Action</Table.Cell>
-                            <Table.Cell><a
-                                className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                href={`https://github.com/${workflowResult.git_repo}/actions/runs/${workflowResult.action_run_id}`}
-                            >
-                                Github Action Run
-                            </a></Table.Cell>
                         </Table.Row>
                         <Table.Row>
                             <Table.Cell>Triggered By</Table.Cell>
@@ -133,16 +106,19 @@ function WorkflowResultDetail() {
                             </Table.Cell>
                         </Table.Row>
                         <Table.Row>
-                            <Table.Cell>Python Version</Table.Cell>
-                            <Table.Cell>{workflowResult?.python_version}</Table.Cell>
+                            <Table.Cell>Versions</Table.Cell>
+                            <Table.Cell>Python {workflowResult?.python_version}, Torch {workflowResult?.pytorch_version}, CUDA {workflowResult?.cuda_version}</Table.Cell>
                         </Table.Row>
                         <Table.Row>
-                            <Table.Cell>Pytorch Version</Table.Cell>
-                            <Table.Cell>{workflowResult?.pytorch_version}</Table.Cell>
-                        </Table.Row>
-                        <Table.Row>
-                            <Table.Cell>Cuda Version</Table.Cell>
-                            <Table.Cell>{workflowResult?.cuda_version}</Table.Cell>
+                            <Table.Cell>Run Info</Table.Cell>
+                            <Table.Cell><a
+                                className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                href={`https://github.com/${workflowResult.git_repo}/actions/runs/${workflowResult.action_run_id}`}
+                            >
+                                Github Action Run
+                            </a>, Job: {workflowResult?.action_job_id}, Run: {workflowResult?.action_run_id}</Table.Cell>
                         </Table.Row>
                     </Table.Body>
                 </Table>
