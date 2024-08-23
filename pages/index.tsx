@@ -1,21 +1,21 @@
-import React from 'react'
-import { useGetBranch, useGetGitcommit } from '../src/api/generated'
 import {
     Badge,
     Button,
-    Select,
-    Table,
     Pagination,
+    Select,
     Spinner,
+    Table,
 } from 'flowbite-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
+import React from 'react'
 import { CiFilter } from 'react-icons/ci'
 import { ClearableLabel } from '../components/Labels/ClearableLabel'
-import { useRouter } from 'next/router'
 import { WorkflowStatusButton } from '../components/StatusButton'
-import { StatusToColor, StatusToHumanText } from './workflow/[id]'
 import analytic from '../global/mixpanel'
+import { useGetBranch, useGetGitcommit } from '../src/api/generated'
+import { StatusToColor, StatusToHumanText } from './workflow/[id]'
 
 const DEFAULT_REPO = 'comfyanonymous/ComfyUI'
 
@@ -283,8 +283,9 @@ function GitCommitsList() {
                                                         result.storage_file
                                                             ?.public_url || ''
                                                     }
-                                                    width="128px"
-                                                    height="128px"
+                                                    alt='output file'
+                                                    width={128}
+                                                    height={128}
                                                 />
                                             </Table.Cell>
                                             <Table.Cell className=' text-xl '>
