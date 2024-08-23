@@ -499,6 +499,8 @@ export interface ActionJobResult {
   commit_time?: number;
   /** CUDA version used */
   cuda_version?: string;
+  /** Name of the relevant git branch */
+  branch_name?: string;
   /** The end time of the job as a Unix timestamp. */
   end_time?: number;
   /** The repository name */
