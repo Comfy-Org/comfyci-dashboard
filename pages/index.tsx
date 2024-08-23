@@ -131,7 +131,6 @@ function GitCommitsList() {
                         setCurrentPage(1);
                     }}
                     onClear={() => setCommitId('')}
-                    disabled
                 />
                 <ClearableLabel
                     id="workflow-id-input"
@@ -142,7 +141,6 @@ function GitCommitsList() {
                         setCurrentPage(1);
                     }}
                     onClear={() => setWorkflowFilter('')}
-                    disabled
                 />
             </div>
             {
