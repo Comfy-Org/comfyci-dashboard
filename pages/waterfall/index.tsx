@@ -49,11 +49,11 @@ function GitCommitsList() {
             return [];
         }
         const byCommit = filteredJobResults.jobResults.reduce((acc, item) => {
-            const { commit_id, operating_system, status, git_repo, commit_message, commit_time } = item;
+            const { commit_id, operating_system, status, git_repo, commit_message, commit_time, commit_hash } = item;
             if (commit_id) {
                 if (!acc[commit_id]) {
                     // Initialize the entry for each commit_id with gitRepo and an empty osStatus map
-                    acc[commit_id] = { gitRepo: git_repo, commitMessage: commit_message, commitTime: commit_time, osStatus: {} };
+                    acc[commit_id] = { gitRepo: git_repo, commitMessage: commit_message, commitTime: commit_time, commitHash: commit_hash, osStatus: {} };
                 }
                 if (!acc[commit_id].osStatus[operating_system]) {
                     // Ensure the operating system entry is initialized as an empty array
@@ -69,6 +69,7 @@ function GitCommitsList() {
         return Object.keys(byCommit).map(commitId => ({
             commitId,
             gitRepo: byCommit[commitId].gitRepo,
+            commitHash: byCommit[commitId].commitHash,
             commitMessage: byCommit[commitId].commitMessage,
             commitTime: byCommit[commitId].commitTime,
             branch: byCommit[commitId].branch,
@@ -162,7 +163,7 @@ function GitCommitsList() {
                         </Table.Head>
                         <Table.Body className="divide-y">
                             {groupedResults.map(
-                                ({ commitId, osStatus, gitRepo, commitMessage, commitTime }, index) => (
+                                ({ commitId, osStatus, gitRepo, commitMessage, commitTime, commitHash }, index) => (
                                     <Table.Row
                                         key={index}
                                         className="bg-white dark:border-gray-700 dark:bg-gray-800"
@@ -171,14 +172,14 @@ function GitCommitsList() {
                                             <div className="flex items-center space-x-2">
                                                 <Link
                                                     className="text-xs"
-                                                    href={`https://github.com/${gitRepo}/commit/${commitId}`}
+                                                    href={`https://github.com/${gitRepo}/commit/${commitHash}`}
                                                 >
                                                     <a
                                                         className="text-blue-500 hover:text-blue-700 underline hover:no-underline"
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
-                                                        {commitId?.slice(
+                                                        {commitHash?.slice(
                                                             0,
                                                             7
                                                         )}
