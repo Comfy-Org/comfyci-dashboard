@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@next/mdx':
         specifier: 12.3.1
-        version: 12.3.1(@mdx-js/loader@2.1.4)(@mdx-js/react@2.1.4)
+        version: 12.3.1(@mdx-js/loader@2.1.4(webpack@5.74.0))(@mdx-js/react@2.1.4(react@18.2.0))
       '@tanstack/react-query':
         specifier: ^5.17.19
         version: 5.17.19(react@18.2.0)
@@ -22,16 +22,16 @@ importers:
         version: 2.3.0
       flowbite-react:
         specifier: 0.7.5
-        version: 0.7.5(react-dom@18.2.0)(react@18.2.0)(tailwindcss@3.1.8)
+        version: 0.7.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(tailwindcss@3.1.8(postcss@8.4.17))
       mixpanel-browser:
         specifier: ^2.45.0
         version: 2.45.0
       next:
         specifier: 12.3.1
-        version: 12.3.1(@babel/core@7.19.3)(react-dom@18.2.0)(react@18.2.0)
+        version: 12.3.1(@babel/core@7.19.3)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       nextjs-cors:
         specifier: ^2.1.1
-        version: 2.1.1(next@12.3.1)
+        version: 2.1.1(next@12.3.1(@babel/core@7.19.3)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))
       pi:
         specifier: ^2.0.4
         version: 2.0.4
@@ -46,7 +46,7 @@ importers:
         version: 5.0.1(react@18.2.0)
       react-toastify:
         specifier: ^9.0.8
-        version: 9.0.8(react-dom@18.2.0)(react@18.2.0)
+        version: 9.0.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
     devDependencies:
       '@babel/core':
         specifier: 7.19.3
@@ -68,7 +68,7 @@ importers:
         version: 18.0.6
       '@typescript-eslint/eslint-plugin':
         specifier: ^6.19.0
-        version: 6.19.0(@typescript-eslint/parser@6.19.0)(eslint@8.56.0)(typescript@4.8.4)
+        version: 6.19.0(@typescript-eslint/parser@6.19.0(eslint@8.56.0)(typescript@4.8.4))(eslint@8.56.0)(typescript@4.8.4)
       '@typescript-eslint/parser':
         specifier: ^6.19.0
         version: 6.19.0(eslint@8.56.0)(typescript@4.8.4)
@@ -89,7 +89,7 @@ importers:
         version: 0.6.4(eslint@8.56.0)(typescript@4.8.4)
       orval:
         specifier: ^6.23.0
-        version: 6.23.0(typescript@4.8.4)
+        version: 6.23.0(terser@5.15.0)(typescript@4.8.4)
       postcss:
         specifier: 8.4.17
         version: 8.4.17
@@ -3704,15 +3704,15 @@ snapshots:
       '@floating-ui/core': 1.6.0
       '@floating-ui/utils': 0.2.1
 
-  '@floating-ui/react-dom@2.0.8(react-dom@18.2.0)(react@18.2.0)':
+  '@floating-ui/react-dom@2.0.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
       '@floating-ui/dom': 1.6.3
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  '@floating-ui/react@0.26.9(react-dom@18.2.0)(react@18.2.0)':
+  '@floating-ui/react@0.26.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
-      '@floating-ui/react-dom': 2.0.8(react-dom@18.2.0)(react@18.2.0)
+      '@floating-ui/react-dom': 2.0.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@floating-ui/utils': 0.2.1
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
@@ -3834,7 +3834,7 @@ snapshots:
     dependencies:
       glob: 7.1.7
 
-  '@next/mdx@12.3.1(@mdx-js/loader@2.1.4)(@mdx-js/react@2.1.4)':
+  '@next/mdx@12.3.1(@mdx-js/loader@2.1.4(webpack@5.74.0))(@mdx-js/react@2.1.4(react@18.2.0))':
     dependencies:
       '@mdx-js/loader': 2.1.4(webpack@5.74.0)
       '@mdx-js/react': 2.1.4(react@18.2.0)
@@ -3941,11 +3941,11 @@ snapshots:
       - encoding
       - supports-color
 
-  '@orval/query@6.23.0':
+  '@orval/query@6.23.0(terser@5.15.0)':
     dependencies:
       '@orval/core': 6.23.0
       lodash.omitby: 4.6.0
-      vitest: 0.34.6
+      vitest: 0.34.6(terser@5.15.0)
     transitivePeerDependencies:
       - '@edge-runtime/vm'
       - '@vitest/browser'
@@ -4291,7 +4291,7 @@ snapshots:
 
   '@types/urijs@1.19.25': {}
 
-  '@typescript-eslint/eslint-plugin@6.19.0(@typescript-eslint/parser@6.19.0)(eslint@8.56.0)(typescript@4.8.4)':
+  '@typescript-eslint/eslint-plugin@6.19.0(@typescript-eslint/parser@6.19.0(eslint@8.56.0)(typescript@4.8.4))(eslint@8.56.0)(typescript@4.8.4)':
     dependencies:
       '@eslint-community/regexpp': 4.10.0
       '@typescript-eslint/parser': 6.19.0(eslint@8.56.0)(typescript@4.8.4)
@@ -4306,6 +4306,7 @@ snapshots:
       natural-compare: 1.4.0
       semver: 7.5.4
       ts-api-utils: 1.0.3(typescript@4.8.4)
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -4325,6 +4326,7 @@ snapshots:
       '@typescript-eslint/typescript-estree': 5.37.0(typescript@4.8.4)
       debug: 4.3.4
       eslint: 8.56.0
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -4337,6 +4339,7 @@ snapshots:
       '@typescript-eslint/visitor-keys': 6.19.0
       debug: 4.3.4
       eslint: 8.56.0
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -4363,6 +4366,7 @@ snapshots:
       debug: 4.3.4
       eslint: 8.56.0
       ts-api-utils: 1.0.3(typescript@4.8.4)
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -4382,6 +4386,7 @@ snapshots:
       is-glob: 4.0.3
       semver: 7.5.4
       tsutils: 3.21.0(typescript@4.8.4)
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -4395,6 +4400,7 @@ snapshots:
       is-glob: 4.0.3
       semver: 7.5.4
       tsutils: 3.21.0(typescript@4.8.4)
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -4409,6 +4415,7 @@ snapshots:
       minimatch: 9.0.3
       semver: 7.5.4
       ts-api-utils: 1.0.3(typescript@4.8.4)
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - supports-color
@@ -4594,7 +4601,7 @@ snapshots:
   acorn@8.8.0: {}
 
   ajv-draft-04@1.0.0(ajv@8.12.0):
-    dependencies:
+    optionalDependencies:
       ajv: 8.12.0
 
   ajv-errors@3.0.0(ajv@8.12.0):
@@ -4602,7 +4609,7 @@ snapshots:
       ajv: 8.12.0
 
   ajv-formats@2.1.1(ajv@8.12.0):
-    dependencies:
+    optionalDependencies:
       ajv: 8.12.0
 
   ajv-keywords@3.5.2(ajv@6.12.6):
@@ -5144,10 +5151,11 @@ snapshots:
       eslint: 8.56.0
       eslint-import-resolver-node: 0.3.6
       eslint-import-resolver-typescript: 2.7.1(eslint-plugin-import@2.26.0)(eslint@8.56.0)
-      eslint-plugin-import: 2.26.0(@typescript-eslint/parser@5.37.0)(eslint-import-resolver-typescript@2.7.1)(eslint@8.56.0)
+      eslint-plugin-import: 2.26.0(@typescript-eslint/parser@6.19.0(eslint@8.56.0)(typescript@4.8.4))(eslint@8.56.0)
       eslint-plugin-jsx-a11y: 6.6.1(eslint@8.56.0)
       eslint-plugin-react: 7.31.8(eslint@8.56.0)
       eslint-plugin-react-hooks: 4.6.0(eslint@8.56.0)
+    optionalDependencies:
       typescript: 4.8.4
     transitivePeerDependencies:
       - eslint-import-resolver-webpack
@@ -5168,7 +5176,7 @@ snapshots:
     dependencies:
       debug: 4.3.4
       eslint: 8.56.0
-      eslint-plugin-import: 2.26.0(@typescript-eslint/parser@5.37.0)(eslint-import-resolver-typescript@2.7.1)(eslint@8.56.0)
+      eslint-plugin-import: 2.26.0(@typescript-eslint/parser@6.19.0(eslint@8.56.0)(typescript@4.8.4))(eslint@8.56.0)
       glob: 7.2.3
       is-glob: 4.0.3
       resolve: 1.22.1
@@ -5176,26 +5184,25 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.7.4(@typescript-eslint/parser@5.37.0)(eslint-import-resolver-node@0.3.6)(eslint-import-resolver-typescript@2.7.1)(eslint@8.56.0):
+  eslint-module-utils@2.7.4(@typescript-eslint/parser@6.19.0(eslint@8.56.0)(typescript@4.8.4))(eslint-import-resolver-node@0.3.6)(eslint@8.56.0):
     dependencies:
-      '@typescript-eslint/parser': 5.37.0(eslint@8.56.0)(typescript@4.8.4)
       debug: 3.2.7
+    optionalDependencies:
+      '@typescript-eslint/parser': 6.19.0(eslint@8.56.0)(typescript@4.8.4)
       eslint: 8.56.0
       eslint-import-resolver-node: 0.3.6
-      eslint-import-resolver-typescript: 2.7.1(eslint-plugin-import@2.26.0)(eslint@8.56.0)
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.26.0(@typescript-eslint/parser@5.37.0)(eslint-import-resolver-typescript@2.7.1)(eslint@8.56.0):
+  eslint-plugin-import@2.26.0(@typescript-eslint/parser@6.19.0(eslint@8.56.0)(typescript@4.8.4))(eslint@8.56.0):
     dependencies:
-      '@typescript-eslint/parser': 5.37.0(eslint@8.56.0)(typescript@4.8.4)
       array-includes: 3.1.5
       array.prototype.flat: 1.3.0
       debug: 2.6.9
       doctrine: 2.1.0
       eslint: 8.56.0
       eslint-import-resolver-node: 0.3.6
-      eslint-module-utils: 2.7.4(@typescript-eslint/parser@5.37.0)(eslint-import-resolver-node@0.3.6)(eslint-import-resolver-typescript@2.7.1)(eslint@8.56.0)
+      eslint-module-utils: 2.7.4(@typescript-eslint/parser@6.19.0(eslint@8.56.0)(typescript@4.8.4))(eslint-import-resolver-node@0.3.6)(eslint@8.56.0)
       has: 1.0.3
       is-core-module: 2.10.0
       is-glob: 4.0.3
@@ -5203,6 +5210,8 @@ snapshots:
       object.values: 1.1.5
       resolve: 1.22.1
       tsconfig-paths: 3.14.1
+    optionalDependencies:
+      '@typescript-eslint/parser': 6.19.0(eslint@8.56.0)(typescript@4.8.4)
     transitivePeerDependencies:
       - eslint-import-resolver-typescript
       - eslint-import-resolver-webpack
@@ -5427,9 +5436,9 @@ snapshots:
 
   flatted@3.2.7: {}
 
-  flowbite-react@0.7.5(react-dom@18.2.0)(react@18.2.0)(tailwindcss@3.1.8):
+  flowbite-react@0.7.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(tailwindcss@3.1.8(postcss@8.4.17)):
     dependencies:
-      '@floating-ui/react': 0.26.9(react-dom@18.2.0)(react@18.2.0)
+      '@floating-ui/react': 0.26.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       classnames: 2.5.1
       debounce: 2.0.0
       flowbite: 2.3.0
@@ -6236,7 +6245,7 @@ snapshots:
 
   neo-async@2.6.2: {}
 
-  next@12.3.1(@babel/core@7.19.3)(react-dom@18.2.0)(react@18.2.0):
+  next@12.3.1(@babel/core@7.19.3)(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       '@next/env': 12.3.1
       '@swc/helpers': 0.4.11
@@ -6264,10 +6273,10 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  nextjs-cors@2.1.1(next@12.3.1):
+  nextjs-cors@2.1.1(next@12.3.1(@babel/core@7.19.3)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)):
     dependencies:
       cors: 2.8.5
-      next: 12.3.1(@babel/core@7.19.3)(react-dom@18.2.0)(react@18.2.0)
+      next: 12.3.1(@babel/core@7.19.3)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
 
   nimma@0.2.2:
     dependencies:
@@ -6395,14 +6404,14 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
-  orval@6.23.0(typescript@4.8.4):
+  orval@6.23.0(terser@5.15.0)(typescript@4.8.4):
     dependencies:
       '@apidevtools/swagger-parser': 10.1.0(openapi-types@12.1.3)
       '@orval/angular': 6.23.0
       '@orval/axios': 6.23.0
       '@orval/core': 6.23.0
       '@orval/mock': 6.23.0
-      '@orval/query': 6.23.0
+      '@orval/query': 6.23.0(terser@5.15.0)
       '@orval/swr': 6.23.0
       '@orval/zod': 6.23.0
       ajv: 8.12.0
@@ -6518,8 +6527,9 @@ snapshots:
   postcss-load-config@3.1.4(postcss@8.4.17):
     dependencies:
       lilconfig: 2.0.6
-      postcss: 8.4.17
       yaml: 1.10.2
+    optionalDependencies:
+      postcss: 8.4.17
 
   postcss-nested@5.0.6(postcss@8.4.17):
     dependencies:
@@ -6599,7 +6609,7 @@ snapshots:
 
   react-is@18.2.0: {}
 
-  react-toastify@9.0.8(react-dom@18.2.0)(react@18.2.0):
+  react-toastify@9.0.8(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       clsx: 1.2.1
       react: 18.2.0
@@ -6909,8 +6919,9 @@ snapshots:
 
   styled-jsx@5.0.7(@babel/core@7.19.3)(react@18.2.0):
     dependencies:
-      '@babel/core': 7.19.3
       react: 18.2.0
+    optionalDependencies:
+      '@babel/core': 7.19.3
 
   supports-color@5.5.0:
     dependencies:
@@ -7020,7 +7031,7 @@ snapshots:
   ts-dedent@2.2.0: {}
 
   tsconfck@2.1.2(typescript@4.8.4):
-    dependencies:
+    optionalDependencies:
       typescript: 4.8.4
 
   tsconfig-paths@3.14.1:
@@ -7193,14 +7204,14 @@ snapshots:
       unist-util-stringify-position: 3.0.2
       vfile-message: 3.1.2
 
-  vite-node@0.34.6(@types/node@18.8.3):
+  vite-node@0.34.6(@types/node@18.8.3)(terser@5.15.0):
     dependencies:
       cac: 6.7.14
       debug: 4.3.4
       mlly: 1.5.0
       pathe: 1.1.2
       picocolors: 1.0.0
-      vite: 5.0.12(@types/node@18.8.3)
+      vite: 5.0.12(@types/node@18.8.3)(terser@5.15.0)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -7211,16 +7222,17 @@ snapshots:
       - supports-color
       - terser
 
-  vite@5.0.12(@types/node@18.8.3):
+  vite@5.0.12(@types/node@18.8.3)(terser@5.15.0):
     dependencies:
-      '@types/node': 18.8.3
       esbuild: 0.19.11
       postcss: 8.4.33
       rollup: 4.9.5
     optionalDependencies:
+      '@types/node': 18.8.3
       fsevents: 2.3.3
+      terser: 5.15.0
 
-  vitest@0.34.6:
+  vitest@0.34.6(terser@5.15.0):
     dependencies:
       '@types/chai': 4.3.11
       '@types/chai-subset': 1.3.5
@@ -7243,8 +7255,8 @@ snapshots:
       strip-literal: 1.3.0
       tinybench: 2.6.0
       tinypool: 0.7.0
-      vite: 5.0.12(@types/node@18.8.3)
-      vite-node: 0.34.6(@types/node@18.8.3)
+      vite: 5.0.12(@types/node@18.8.3)(terser@5.15.0)
+      vite-node: 0.34.6(@types/node@18.8.3)(terser@5.15.0)
       why-is-node-running: 2.2.2
     transitivePeerDependencies:
       - less
