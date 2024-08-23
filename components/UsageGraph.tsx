@@ -8,8 +8,8 @@ const UsageGraph = ({ data }) => {
     }));
 
     return (
-        <div className="w-full h-[400px]">
-            <ResponsiveContainer width="99%" aspect={3} height="100%">
+        <div className="w-full">
+            <ResponsiveContainer width="100%" aspect={3}>
                 <LineChart data={parsedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
