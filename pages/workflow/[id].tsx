@@ -7,7 +7,6 @@ import Image from "next/image";
 import { WorkflowStatusButton } from "../../components/StatusButton";
 import { calculateTimeDifference } from "..";
 
-
 function WorkflowResultDetail() {
     const router = useRouter();
     const workflowId = typeof router.query.id === 'string' ? router.query.id : "";
@@ -32,7 +31,6 @@ function WorkflowResultDetail() {
     if (workflowResult === undefined) {
         return null;
     }
-
 
     return (
         <div className="space-y-6 p-10">

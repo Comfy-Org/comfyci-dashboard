@@ -78,7 +78,6 @@ function GitCommitsList() {
         setCurrentPage(parseInt(typeof query.page === 'string' ? query.page : query.page?.[0] || '1'));
     }, [router.query]);
 
-
     const { data: branchesQueryResults, isLoading: loadingBranchs } = useGetBranch({
         repo_name: repoFilter
     })

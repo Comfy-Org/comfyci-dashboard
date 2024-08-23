@@ -2718,7 +2718,3 @@ export const useGetWorkflowResult = <TData = Awaited<ReturnType<typeof getWorkfl
 
   return query;
 }
-
-
-
-

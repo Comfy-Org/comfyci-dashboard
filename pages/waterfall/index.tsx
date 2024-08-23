@@ -8,7 +8,6 @@ import {
     Pagination,
     Spinner,
 } from 'flowbite-react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { CiFilter } from 'react-icons/ci'
 import { useRouter } from 'next/router'
@@ -240,7 +239,5 @@ function GitCommitsList() {
         </div>
     )
 }
-
-
 
 export default GitCommitsList
