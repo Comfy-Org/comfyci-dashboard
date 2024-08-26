@@ -85,13 +85,16 @@ function WorkflowResultDetail() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     href={`https://github.com/${workflowResult.git_repo}`}
-                                >{workflowResult?.git_repo}</a> - {workflowResult.branch_name}
-                                {workflowResult?.pr_number ?? <span>
-                                        <a
+                                >{workflowResult?.git_repo}</a>
+                                &nbsp;on branch {workflowResult.branch_name}
+                                {workflowResult?.pr_number ? <span>
+                                        &nbsp;(PR <a
                                         className="text-blue-500 hover:text-blue-700 underline hover:no-underline "
-                                        href={`https://github.com/${workflowResult.git_repo}/pull/${workflowResult.pr_number}`}>{workflowResult.pr_number}</a> - {workflowResult?.author}
+                                        href={`https://github.com/${workflowResult.git_repo}/pull/${workflowResult.pr_number}`}>
+                                            #{workflowResult.pr_number}
+                                        </a> by {workflowResult?.author || "Unknown"})
                                     </span>
-                                }
+                                : ''}
 
                             </Table.Cell>
                         </Table.Row>
