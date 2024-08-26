@@ -155,7 +155,7 @@ function WorkflowResultDetail() {
             </Card>
             <Card>
                 <h5 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-4">
-                    VRAM Usage Over Time
+                    Resource Usage Over Time
                 </h5>
                 <div className="w-full">
                     <UsageGraph data={workflowResult?.machine_stats?.vram_time_series || {}} />
