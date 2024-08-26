@@ -14,7 +14,7 @@ const UsageGraph = ({ data }) => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
                         dataKey="time"
-                        label={{ value: 'Time (Seconds)', position: 'insideBottomRight', offset: -10 }}
+                        label={{ value: 'Time (Seconds)', position: 'insideBottomLeft', offset: 0 }}
                         tick={{ fontSize: 12 }}
                         interval={'preserveStartEnd'}
                     />
