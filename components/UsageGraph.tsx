@@ -1,11 +1,16 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const UsageGraph = ({ data, maxMemory }) => {
-    const parsedData = Object.entries(data).map(([time, mem]) => ({
-        time: parseFloat(time.split(' ')[0]),
-        mem: parseInt((mem as string).split(' ')[0])
-    })).sort((a, b) => a.time - b.time);
+const UsageGraph = ({ data }) => {
+    const maxMemory = data["total"] ? parseInt(data["total"].split(' ')[0]) : undefined;
+
+    const parsedData = Object.entries(data)
+        .filter(([key]) => key !== "total")
+        .map(([time, mem]) => ({
+            time: parseFloat(time.split(' ')[0]),
+            mem: parseInt((mem as string).split(' ')[0])
+        }))
+        .sort((a, b) => a.time - b.time);
 
     const maxYValue = maxMemory || Math.max(...parsedData.map(item => item.mem));
 
