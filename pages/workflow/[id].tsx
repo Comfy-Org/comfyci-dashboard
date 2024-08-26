@@ -104,7 +104,7 @@ function WorkflowResultDetail() {
                         </Table.Row>
                         <Table.Row>
                             <Table.Cell>Run Time</Table.Cell>
-                            <Table.Cell className=' text-lg '>
+                            <Table.Cell>
                                 {workflowResult.end_time && workflowResult.start_time ? calculateTimeDifference(workflowResult.end_time, workflowResult.start_time) : "unknown"}
                             </Table.Cell>
                         </Table.Row>
