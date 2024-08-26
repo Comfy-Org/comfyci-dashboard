@@ -1,11 +1,13 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const UsageGraph = ({ data }) => {
+const UsageGraph = ({ data, maxMemory }) => {
     const parsedData = Object.entries(data).map(([time, mem]) => ({
         time: parseFloat(time.split(' ')[0]),
         mem: parseInt((mem as string).split(' ')[0])
     })).sort((a, b) => a.time - b.time);
+
+    const maxYValue = maxMemory || Math.max(...parsedData.map(item => item.mem));
 
     return (
         <div className="w-full">
@@ -16,15 +18,18 @@ const UsageGraph = ({ data }) => {
                         dataKey="time"
                         label={{ value: 'Time (Seconds)', position: 'insideBottomLeft', offset: 0 }}
                         tick={{ fontSize: 12 }}
-                        interval={'preserveStartEnd'}
+                        interval={1}
+                        tickFormatter={(value) => Number.isInteger(value) ? value : ''}
                     />
                     <YAxis
-                        label={{ value: 'MiB', angle: -90, position: 'insideLeft', offset: 10 }}
+                        label={{ value: 'GiB', angle: -90, position: 'insideLeft', offset: 10 }}
                         tick={{ fontSize: 12 }}
+                        tickFormatter={(value) => (value / 1024).toFixed(1)}
+                        domain={[0, maxYValue]}
                     />
                     <Tooltip
-                        formatter={(value) => `${value} MiB`}
-                        labelFormatter={(label) => `Time: ${label}`}
+                        formatter={(value: number) => `${value} MiB (${(value / 1024).toFixed(1)} GiB)`}
+                        labelFormatter={(label) => `Time: ${label} seconds`}
                     />
                     <Line type="monotone" dataKey="mem" stroke="#8884d8" strokeWidth={2} dot={false} />
                 </LineChart>

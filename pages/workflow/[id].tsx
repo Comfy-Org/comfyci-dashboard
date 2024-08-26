@@ -158,7 +158,7 @@ function WorkflowResultDetail() {
                     VRAM Usage Over Time
                 </h5>
                 <div className="w-full">
-                    <UsageGraph data={workflowResult?.machine_stats?.vram_time_series || {}} />
+                    <UsageGraph data={workflowResult?.machine_stats?.vram_time_series || {}} maxMemory={workflowResult?.peak_vram} />
                 </div>
             </Card>
         </div>
