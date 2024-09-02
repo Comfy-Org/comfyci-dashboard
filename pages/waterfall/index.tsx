@@ -29,7 +29,7 @@ function GitCommitsList() {
         branch: branchFilter == 'Select Branch' ? undefined : branchFilter,
         page: currentPage,
         repoName: repoFilter,
-        pageSize: 100,
+        pageSize: 1000,
     })
 
     const { data: branchesQueryResults, isLoading: loadingBranchs } = useGetBranch({
