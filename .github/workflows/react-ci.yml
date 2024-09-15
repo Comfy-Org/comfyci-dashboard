@@ -21,7 +21,8 @@ jobs:
               run: pnpm install
             - name: Run Next.js Lint
               run: pnpm run lint
-            - name: Check Formatting with Prettier
-              run: npx prettier --check .
+            # Disabled prettier check because it makes things much uglier :(
+            #- name: Check Formatting with Prettier
+            #  run: npx prettier --check .
             - name: Build the Next.js Project
               run: pnpm run build
