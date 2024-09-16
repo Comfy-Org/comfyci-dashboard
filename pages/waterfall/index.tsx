@@ -1,5 +1,5 @@
 import React from 'react'
-import { useGetBranch, useGetGitcommit, WorkflowRunStatus } from '../../src/api/generated'
+import { useGetBranch, useGetGitcommit, useGetGitcommitsummary, WorkflowRunStatus } from '../../src/api/generated'
 import {
     Badge,
     Button,
@@ -23,15 +23,12 @@ function GitCommitsList() {
     const [branchFilter, setBranchFilter] = React.useState<string>('master')
     const [commitId, setCommitId] = React.useState<string>('')
     const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')
-    const { data: filteredJobResults, isLoading } = useGetGitcommit({
-        operatingSystem: filterOS == 'Select OS' ? undefined : filterOS,
-        commitId: commitId == '' ? undefined : commitId,
-        branch: branchFilter == 'Select Branch' ? undefined : branchFilter,
+    const { data: filteredJobResults, isLoading } = useGetGitcommitsummary({
+        branchName: branchFilter == 'Select Branch' ? undefined : branchFilter,
         page: currentPage,
         repoName: repoFilter,
-        pageSize: 1000,
+        pageSize: 10,
     })
-
     const { data: branchesQueryResults, isLoading: loadingBranchs } = useGetBranch({
         repo_name: repoFilter
     })
@@ -43,55 +40,27 @@ function GitCommitsList() {
         }
     }, [router.query.repo]);
 
-
     const groupedResults = React.useMemo(() => {
-        if (isLoading || !filteredJobResults || !filteredJobResults.jobResults) {
-            return [];
-        }
-        const byCommit = filteredJobResults.jobResults.reduce((acc, item) => {
-            const { commit_id, operating_system, status, git_repo, commit_message, commit_time, commit_hash } = item;
-            if (commit_id) {
-                if (!acc[commit_id]) {
-                    // Initialize the entry for each commit_id with gitRepo and an empty osStatus map
-                    acc[commit_id] = { gitRepo: git_repo, commitMessage: commit_message, commitTime: commit_time, commitHash: commit_hash, osStatus: {} };
-                }
-                if (!acc[commit_id].osStatus[operating_system]) {
-                    // Ensure the operating system entry is initialized as an empty array
-                    acc[commit_id].osStatus[operating_system] = [];
-                }
-                // Append the status to the array of statuses for the current operating system
-                acc[commit_id].osStatus[operating_system].push(status);
-            }
-            return acc;
-        }, {});
-
         // Generate the final grouped results, including error handling for unexpected data types
-        return Object.keys(byCommit).map(commitId => ({
-            commitId,
-            gitRepo: byCommit[commitId].gitRepo,
-            commitHash: byCommit[commitId].commitHash,
-            commitMessage: byCommit[commitId].commitMessage,
-            commitTime: byCommit[commitId].commitTime,
-            branch: byCommit[commitId].branch,
-            osStatus: Object.keys(byCommit[commitId].osStatus).map(os => {
-                const statuses = byCommit[commitId].osStatus[os];
-                // First check if any statuses indicate failure
-                const isFailed = Array.isArray(statuses) && statuses.some(status => status === WorkflowRunStatus.WorkflowRunStatusFailed);
-                if (isFailed) {
+        return filteredJobResults?.commitSummaries?.map(commitSummary => ({
+            gitRepo: repoFilter,
+            commitHash: commitSummary.commit_hash,
+            commitMessage: commitSummary.commit_name,
+            commitTime: commitSummary.timestamp,
+            branch: commitSummary.branch_name,
+            osStatus: Object.entries(commitSummary.status_summary || {}).map(([os, status]) => {
+                if (status === "FAILED") {
                     return {
                         os,
                         status: 'red', // Red if any job has failed
                     };
                 }
-                // Then check if any statuses indicate started
-                const isInProgress = Array.isArray(statuses) && statuses.some(status => status === WorkflowRunStatus.WorkflowRunStatusStarted);
-                if (isInProgress) {
+                if (status === "STARTED") {
                     return {
                         os,
                         status: 'orange', // Yellow if any job is in progress
                     };
                 }
-                // Default to green if none are failed or in progress
                 return {
                     os,
                     status: 'green', // Green if all jobs have succeeded
@@ -162,8 +131,8 @@ function GitCommitsList() {
 
                         </Table.Head>
                         <Table.Body className="divide-y">
-                            {groupedResults.map(
-                                ({ commitId, osStatus, gitRepo, commitMessage, commitTime, commitHash }, index) => (
+                            {groupedResults?.map(
+                                ({ osStatus, gitRepo, commitMessage, commitTime, commitHash }, index) => (
                                     <Table.Row
                                         key={index}
                                         className="bg-white dark:border-gray-700 dark:bg-gray-800"
@@ -182,24 +151,13 @@ function GitCommitsList() {
                                                     )}
 
                                                 </Link>
-                                                <Button
-                                                    size="xs"
-                                                    onClick={() => {
-                                                        setCommitId(
-                                                            commitId ||
-                                                            ''
-                                                        )
-                                                    }}
-                                                >
-                                                    <CiFilter />
-                                                </Button>
                                             </div>
                                         </Table.Cell>
                                         <Table.Cell>
                                             {commitMessage}
                                         </Table.Cell>
                                         <Table.Row>
-                                            <Table.Cell>{commitTime !== undefined ? new Date(commitTime * 1000).toLocaleString() : commitTime}</Table.Cell>
+                                            <Table.Cell>{commitTime}</Table.Cell>
                                         </Table.Row>
                                         <Table.Cell>
                                             <div className='flex flex-row gap-1'>
