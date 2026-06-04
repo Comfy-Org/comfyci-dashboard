@@ -33,29 +33,38 @@ const UsageGraph = ({ data }) => {
         <div className="w-full">
             <ResponsiveContainer width="100%" aspect={3}>
                 <LineChart data={parsedData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#3c3d42" strokeOpacity={0.5} />
                     <XAxis
                         dataKey="time"
-                        label={{ value: 'Time (Seconds)', position: 'insideBottomRight', offset: 0 }}
-                        tick={{ fontSize: 12 }}
+                        label={{ value: 'Time (Seconds)', position: 'insideBottomRight', offset: 0, fill: '#8a8a8a' }}
+                        tick={{ fontSize: 12, fill: '#8a8a8a' }}
+                        stroke="#55565e"
                         interval={1}
                         tickFormatter={(value) => Number.isInteger(value) ? value : ''}
                     />
                     <YAxis
                         yAxisId="left"
-                        label={{ value: 'Memory (GiB)', angle: -90, position: 'insideLeft', offset: 10 }}
-                        tick={{ fontSize: 12 }}
+                        label={{ value: 'Memory (GiB)', angle: -90, position: 'insideLeft', offset: 10, fill: '#8a8a8a' }}
+                        tick={{ fontSize: 12, fill: '#8a8a8a' }}
+                        stroke="#55565e"
                         tickFormatter={(value) => (value / 1024).toFixed(1)}
                         domain={[0, Math.max(maxVRAM, maxRAM)]}
                     />
                     <YAxis
                         yAxisId="right"
                         orientation="right"
-                        label={{ value: 'Usage (%)', angle: 90, position: 'insideRight', offset: 10 }}
-                        tick={{ fontSize: 12 }}
+                        label={{ value: 'Usage (%)', angle: 90, position: 'insideRight', offset: 10, fill: '#8a8a8a' }}
+                        tick={{ fontSize: 12, fill: '#8a8a8a' }}
+                        stroke="#55565e"
                         domain={[0, 100]}
                     />
                     <Tooltip
+                        contentStyle={{
+                            background: '#19161a',
+                            border: '1px solid #3c3d42',
+                            borderRadius: 8,
+                            color: '#f3f3f3',
+                        }}
                         formatter={(value: number, name: string) => {
                             if (name === 'VRAM' || name === 'System RAM') {
                                 return [`${value} MiB (${(value / 1024).toFixed(1)} GiB)`, name];
@@ -64,10 +73,10 @@ const UsageGraph = ({ data }) => {
                         }}
                         labelFormatter={(label) => `Time: ${label} seconds`}
                     />
-                    <Line yAxisId="left" type="monotone" dataKey="vram" name="VRAM" stroke="#8884d8" strokeWidth={2} dot={false} />
-                    <Line yAxisId="left" type="monotone" dataKey="ram" name="System RAM" stroke="#82ca9d" strokeWidth={2} dot={false} />
-                    <Line yAxisId="right" type="monotone" dataKey="gpu_usage" name="GPU Usage" stroke="#ffc658" strokeWidth={2} dot={false} />
-                    <Line yAxisId="right" type="monotone" dataKey="cpu_usage" name="CPU Usage" stroke="#ff7300" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="vram" name="VRAM" stroke="#8d7fc5" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="ram" name="System RAM" stroke="#10b981" strokeWidth={2} dot={false} />
+                    <Line yAxisId="right" type="monotone" dataKey="gpu_usage" name="GPU Usage" stroke="#f0ff41" strokeWidth={2} dot={false} />
+                    <Line yAxisId="right" type="monotone" dataKey="cpu_usage" name="CPU Usage" stroke="#5b9bd5" strokeWidth={2} dot={false} />
                 </LineChart>
             </ResponsiveContainer>
         </div>
