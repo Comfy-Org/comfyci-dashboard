@@ -24,6 +24,11 @@ export default function Layout({ children }: React.PropsWithChildren) {
                 />
                 <link
                     rel="icon"
+                    type="image/svg+xml"
+                    href="/brand/favicon.svg"
+                />
+                <link
+                    rel="icon"
                     type="image/png"
                     sizes="16x16"
                     href="/images/favicon-16x16.png"
@@ -58,7 +63,7 @@ export default function Layout({ children }: React.PropsWithChildren) {
                 />
                 <meta
                     name="theme-color"
-                    content="#ffffff"
+                    content="#151317"
                 />
                 <meta
                     name="mobile-web-app-capable"
@@ -123,10 +128,12 @@ export default function Layout({ children }: React.PropsWithChildren) {
 
                 <ThemeModeScript />
             </Head>
-            <ToastContainer />
-            <main>
+            <ToastContainer theme="dark" />
+            <main className="min-h-screen bg-smoke-100 dark:bg-ink-900 text-charcoal-800 dark:text-smoke-100">
                 <Header />
-                {children}
+                <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 pb-16">
+                    {children}
+                </div>
             </main>
         </>
     )

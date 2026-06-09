@@ -10,6 +10,64 @@ module.exports = {
     theme: {
         extend: {
             colors: {
+                // ── Comfy brand palette (from ComfyUI_frontend design-system) ──
+                // Ink: deep aubergine-near-black backgrounds
+                ink: {
+                    100: '#5c5362',
+                    200: '#4f4754',
+                    300: '#413b45',
+                    400: '#353139',
+                    500: '#312c34',
+                    600: '#29252c',
+                    700: '#232025',
+                    800: '#19161a',
+                    900: '#151317',
+                },
+                // Charcoal: neutral dark surfaces
+                charcoal: {
+                    100: '#55565e',
+                    200: '#494a50',
+                    300: '#3c3d42',
+                    400: '#313235',
+                    500: '#2d2e32',
+                    600: '#262729',
+                    700: '#202121',
+                    800: '#171718',
+                },
+                // Smoke / ash: light text + muted greys
+                smoke: {
+                    100: '#f3f3f3',
+                    200: '#e9e9e9',
+                    300: '#e1e1e1',
+                    400: '#d9d9d9',
+                    500: '#c5c5c5',
+                    600: '#b4b4b4',
+                    700: '#a0a0a0',
+                    800: '#8a8a8a',
+                },
+                ash: {
+                    300: '#bbbbbb',
+                    500: '#828282',
+                    800: '#444444',
+                },
+                // Plum: secondary purple accent
+                plum: {
+                    300: '#afa3db',
+                    400: '#8d7fc5',
+                    500: '#6b5ca8',
+                    600: '#49378b',
+                },
+                // Brand accents
+                electric: {
+                    DEFAULT: '#f0ff41',
+                    400: '#f0ff41',
+                },
+                sapphire: {
+                    DEFAULT: '#172dd7',
+                    700: '#172dd7',
+                },
+
+                // ── Legacy comfy colors (kept for back-compat) ──
                 'button-rose': '#E6BCB5',
                 'button-grass': '#E4E3AC',
                 'button-sky': '#B8C8CB',
@@ -25,13 +83,14 @@ module.exports = {
                 'grey-regular': '#2D353F',
                 'bright-charcoal': '#A4C4D2'
             },
+            boxShadow: {
+                'card': '0 1px 2px 0 rgba(0,0,0,0.3), 0 1px 6px -1px rgba(0,0,0,0.2)',
+                'glow': '0 0 0 1px rgba(240,255,65,0.25), 0 4px 20px -4px rgba(240,255,65,0.15)',
+            },
         },
         fontFamily: {
-            sans: ['"glacial-indifference-regular"', 'sans-serif'],
-            'sans-bold': ['"glacial-indifference-bold"', 'sans-serif'],
-            'sans-ita': ['"glacial-indifference-bold"', 'sans-serif'],
-            title: ['"league-spartan"', 'sans-serif'],
-            // ttnorms: ['"tt-norms"', 'sans-serif'],
+            sans: ['"PP Formula"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            title: ['"PP Formula"', 'Inter', 'sans-serif'],
         },
         fontWeight: {
             'extra-light': 100,
@@ -47,19 +106,10 @@ module.exports = {
         screens: {
             xs: '320px',
             sm: '640px',
-            // => @media (min-width: 640px) { ... }
-
             md: '768px',
-            // => @media (min-width: 768px) { ... }
-
             lg: '1024px',
-            // => @media (min-width: 1024px) { ... }
-
             xl: '1280px',
-            // => @media (min-width: 1280px) { ... }
-
             '2xl': '1536px',
-            // => @media (min-width: 1536px) { ... }
         },
     },
     plugins: [require('flowbite/plugin')],

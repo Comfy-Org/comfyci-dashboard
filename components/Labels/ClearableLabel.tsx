@@ -1,6 +1,6 @@
 import React from 'react'
-import { FloatingLabel, Button } from 'flowbite-react'
 import { MdClear } from 'react-icons/md'
+import { fieldClass } from '../Inputs'
 
 export const ClearableLabel: React.FC<{
     id: string
@@ -12,27 +12,25 @@ export const ClearableLabel: React.FC<{
 }> = ({ label, value, onClear, onChange, id, disabled = false }) => {
     return (
         <div className="relative flex items-center">
-            <FloatingLabel
+            <input
                 id={id}
                 type="text"
-                className="w-64"
-                variant="filled"
-                label={label}
+                placeholder={label}
+                aria-label={label}
                 value={value}
-                onChange={(e) => onChange(e.target.value)}
                 disabled={disabled}
+                onChange={(e) => onChange(e.target.value)}
+                className={`${fieldClass} w-56 ${value ? 'pr-9' : ''} disabled:cursor-not-allowed disabled:opacity-50`}
             />
-            {value && (
-                <Button
+            {value && !disabled && (
+                <button
                     onClick={onClear}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     type="button"
-                    color="cyan"
                     aria-label="Clear"
-                    size="xs"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-ash-500 hover:bg-smoke-200 hover:text-charcoal-800 dark:hover:bg-charcoal-400/60 dark:hover:text-smoke-100"
                 >
-                    <MdClear size="15px" color="black" />
-                </Button>
+                    <MdClear size="15px" />
+                </button>
             )}
         </div>
     )

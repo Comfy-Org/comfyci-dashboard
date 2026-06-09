@@ -28,8 +28,8 @@ const ThemeToggler = () => {
         <button
             onClick={toggleTheme}
             type="button"
-            style={{ marginRight: '1rem' }}
-            className="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5"
+            aria-label="Toggle dark mode"
+            className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 p-2.5 text-ash-500 dark:text-smoke-700 hover:text-charcoal-800 dark:hover:text-electric focus:outline-none focus:ring-2 focus:ring-electric/40"
         >
             {darkMode ? (
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
