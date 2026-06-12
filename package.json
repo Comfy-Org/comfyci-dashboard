@@ -3,6 +3,10 @@
   "version": "0.1.1",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "pi-decimals"]
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -23,7 +27,7 @@
     "flowbite": "^2.5.1",
     "flowbite-react": "^0.7.8",
     "mixpanel-browser": "^2.55.0",
-    "next": "14.2.6",
+    "next": "14.2.35",
     "nextjs-cors": "^2.2.0",
     "pi": "^2.0.4",
     "react": "18.2.0",
