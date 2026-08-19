@@ -1,11 +1,14 @@
-// Read-only client for regression results in GCS. These are static JSON blobs
-// (not api.comfy.org endpoints), fetched directly from the public bucket.
+// Read-only client for regression results. These are static JSON blobs (not
+// api.comfy.org endpoints) fetched from public storage: currently the worker
+// repo's `results` branch via raw.githubusercontent.com; set
+// NEXT_PUBLIC_REGRESSION_BASE to the GCS URL once results move there
+// (e.g. https://storage.googleapis.com/comfy-ci-results/regression).
 import { useQuery } from '@tanstack/react-query'
 import type { LatestPointer, RegressionSummary, RunRecord } from './types'
 
 export const REGRESSION_BASE =
-    process.env.NEXT_PUBLIC_GCS_REGRESSION_BASE ||
-    'https://storage.googleapis.com/comfy-ci-results/regression'
+    process.env.NEXT_PUBLIC_REGRESSION_BASE ||
+    'https://raw.githubusercontent.com/Comfy-Org/comfyci-runpod-worker/results/regression'
 
 async function fetchJsonOrNull<T>(url: string): Promise<T | null> {
     const res = await fetch(url, { cache: 'no-store' })
