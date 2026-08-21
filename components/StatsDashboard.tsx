@@ -2,17 +2,7 @@ import React from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { ActionJobResult, WorkflowRunStatus } from '../src/api/generated'
 import { Surface, SectionTitle } from './Surface'
-
-/** Format a duration in seconds into a compact human string. */
-function formatDuration(seconds: number): string {
-    if (!isFinite(seconds) || seconds <= 0) return '—'
-    if (seconds < 60) return `${Math.round(seconds)}s`
-    const mins = seconds / 60
-    if (mins < 60) return `${mins.toFixed(1)}m`
-    const hrs = Math.floor(mins / 60)
-    const rem = Math.round(mins % 60)
-    return `${hrs}h ${rem}m`
-}
+import { formatDuration } from '../utils/format'
 
 interface DashboardStats {
     total: number

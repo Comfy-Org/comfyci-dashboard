@@ -10,7 +10,7 @@ import { WorkflowStatusButton } from "../../components/StatusButton";
 import { Surface, SectionTitle } from "../../components/Surface";
 import UsageGraph from "../../components/UsageGraph";
 import LongTextPreview from "../../components/LongTextPreview";
-import { calculateTimeDifference } from "..";
+import { formatDuration } from "../../utils/format";
 
 const Row: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
     <div className="flex flex-col gap-1 border-b border-smoke-200 dark:border-charcoal-400/40 py-3 sm:flex-row sm:items-start sm:gap-4 last:border-0">
@@ -96,7 +96,7 @@ function WorkflowResultDetail() {
                             </span>
                             <span className="font-mono text-sm tabular-nums text-charcoal-800 dark:text-smoke-200">
                                 {workflowResult.end_time && workflowResult.start_time
-                                    ? calculateTimeDifference(workflowResult.end_time, workflowResult.start_time)
+                                    ? formatDuration(Math.abs(workflowResult.end_time - workflowResult.start_time))
                                     : 'unknown'}
                             </span>
                         </div>
@@ -150,7 +150,7 @@ function WorkflowResultDetail() {
                     <Row label="Triggered By">{workflowResult?.job_trigger_user}</Row>
                     <Row label="Run Time">
                         {workflowResult.end_time && workflowResult.start_time
-                            ? calculateTimeDifference(workflowResult.end_time, workflowResult.start_time)
+                            ? formatDuration(Math.abs(workflowResult.end_time - workflowResult.start_time))
                             : "unknown"}
                     </Row>
                     <Row label="Versions">

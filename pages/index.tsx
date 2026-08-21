@@ -12,10 +12,19 @@ import { Surface, SectionTitle } from '../components/Surface'
 import { BrandSelect } from '../components/Inputs'
 import { Pager } from '../components/Pager'
 import analytic from '../global/mixpanel'
-import { useGetBranch, useGetGitcommit } from '../src/api/generated'
+import { useGetBranch, useGetGitcommit, WorkflowRunStatus } from '../src/api/generated'
+import { formatDuration } from '../utils/format'
 import { StatusToColor, StatusToHumanText } from './workflow/[id]'
 
 const DEFAULT_REPO = 'comfyanonymous/ComfyUI'
+
+// Status filter options. The /gitcommit API has no status param, so this filters
+// the rows already loaded for the current page (see note rendered below the table).
+const STATUS_OPTIONS: { label: string; value: string }[] = [
+    { label: 'Failed', value: WorkflowRunStatus.WorkflowRunStatusFailed },
+    { label: 'In Progress', value: WorkflowRunStatus.WorkflowRunStatusStarted },
+    { label: 'Success', value: WorkflowRunStatus.WorkflowRunStatusCompleted },
+]
 
 function GitCommitsList() {
     const [currentPage, setCurrentPage] = React.useState(1)
@@ -26,6 +35,8 @@ function GitCommitsList() {
     const [branchFilter, setBranchFilter] = React.useState<string>('Select Branch')
     const [commitId, setCommitId] = React.useState<string>('')
     const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')
+    // Client-side only (the API has no status param) — not synced to the URL.
+    const [statusFilter, setStatusFilter] = React.useState<string>('')
 
     const prevFilters = React.useRef({ filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage });
 
@@ -56,7 +67,6 @@ function GitCommitsList() {
                 workflowName: workflowNameFilter || undefined,
                 page: currentPage.toString(),
             };
-            console.log(`Updating url parameters due to filter change, ${JSON.stringify(query)} vs ${JSON.stringify(prevFilters.current)}`)
             router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
 
             // Update the ref with the new values
@@ -88,17 +98,22 @@ function GitCommitsList() {
     }, [router.query.repo]);
 
     const jobResults = filteredJobResults?.jobResults ?? []
+    const visibleResults = statusFilter
+        ? jobResults.filter((r) => r.status === statusFilter)
+        : jobResults
     const hasActiveFilters =
         filterOS !== 'Select OS' ||
         branchFilter !== 'Select Branch' ||
         commitId !== '' ||
-        workflowNameFilter !== ''
+        workflowNameFilter !== '' ||
+        statusFilter !== ''
 
     const clearAll = () => {
         setFilterOS('Select OS')
         setBranchFilter('Select Branch')
         setCommitId('')
         setWorkflowFilter('')
+        setStatusFilter('')
         setCurrentPage(1)
     }
 
@@ -170,6 +185,22 @@ function GitCommitsList() {
                         <option value="macos">macos</option>
                         <option value="windows">windows</option>
                     </BrandSelect>
+                    <BrandSelect
+                        id="status-select"
+                        value={statusFilter}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value)
+                            analytic.track('Change Status Filter', { status: e.target.value })
+                        }}
+                        className="w-44"
+                    >
+                        <option value="">Select Status</option>
+                        {STATUS_OPTIONS.map((s) => (
+                            <option key={s.value} value={s.value}>
+                                {s.label}
+                            </option>
+                        ))}
+                    </BrandSelect>
                     <ClearableLabel
                         id="commit-id-input"
                         label="Commit ID"
@@ -206,6 +237,12 @@ function GitCommitsList() {
                 </Surface>
             ) : (
                 <>
+                    {statusFilter && (
+                        <p className="mb-2 text-xs text-ash-500 dark:text-smoke-800">
+                            Showing {visibleResults.length} of {jobResults.length} run{jobResults.length === 1 ? '' : 's'} on this page matching{' '}
+                            <span className="font-semibold">{StatusToHumanText(statusFilter as WorkflowRunStatus)}</span>.
+                        </p>
+                    )}
                     <Surface className="overflow-hidden">
                         <div className="overflow-x-auto scrollbar-thin">
                             <table className="w-full text-left text-sm">
@@ -221,10 +258,20 @@ function GitCommitsList() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-smoke-200 dark:divide-charcoal-400/40">
-                                    {jobResults.map((result, index) => (
+                                    {visibleResults.length === 0 && (
+                                        <tr>
+                                            <td colSpan={7} className="px-5 py-10 text-center text-sm text-ash-500 dark:text-smoke-800">
+                                                No runs match the selected status on this page.
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {visibleResults.map((result, index) => (
                                         <tr
-                                            key={index}
-                                            className="group transition-colors hover:bg-smoke-200/60 dark:hover:bg-charcoal-700/40"
+                                            key={result.id || index}
+                                            className={`group transition-colors hover:bg-smoke-200/60 dark:hover:bg-charcoal-700/40 ${result.status === WorkflowRunStatus.WorkflowRunStatusFailed
+                                                ? 'bg-red-500/[0.06] dark:bg-red-500/[0.08]'
+                                                : ''
+                                                }`}
                                         >
                                             {/* Workflow */}
                                             <td className="px-5 py-4 align-top">
@@ -339,7 +386,7 @@ function GitCommitsList() {
                                             <td className="px-5 py-4 align-top">
                                                 <span className="font-mono text-sm tabular-nums">
                                                     {result.end_time && result.start_time
-                                                        ? calculateTimeDifference(result.end_time, result.start_time)
+                                                        ? formatDuration(Math.abs(result.end_time - result.start_time))
                                                         : 'unknown'}
                                                 </span>
                                             </td>
@@ -374,17 +421,6 @@ function GitCommitsList() {
             )}
         </div>
     );
-}
-
-export function calculateTimeDifference(startTime: number, endTime: number): string {
-    const differenceInSeconds = Math.abs(endTime - startTime)
-    const difference =
-        differenceInSeconds >= 60
-            ? parseFloat((differenceInSeconds / 60).toFixed(1))
-            : differenceInSeconds
-    return differenceInSeconds >= 60
-        ? `${difference} minute`
-        : `${difference} sec`
 }
 
 export default GitCommitsList
