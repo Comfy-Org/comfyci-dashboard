@@ -393,15 +393,25 @@ function GitCommitsList() {
 
                                             {/* Action */}
                                             <td className="px-5 py-4 align-top text-right">
-                                                <Link
-                                                    href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-2.5 py-1.5 text-xs font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-charcoal-900 dark:hover:text-electric"
-                                                >
-                                                    Action
-                                                    <FiExternalLink className="h-3 w-3" />
-                                                </Link>
+                                                <div className="flex flex-col items-end gap-1.5">
+                                                    <Link
+                                                        href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-2.5 py-1.5 text-xs font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-charcoal-900 dark:hover:text-electric"
+                                                    >
+                                                        Action
+                                                        <FiExternalLink className="h-3 w-3" />
+                                                    </Link>
+                                                    {result.branch_name && result.commit_hash && (
+                                                        <Link
+                                                            href={`/regression/${result.branch_name}/${result.commit_hash}`}
+                                                            className="text-[11px] font-medium text-ash-500 hover:text-electric hover:underline"
+                                                        >
+                                                            Regression
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

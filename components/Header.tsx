@@ -6,6 +6,7 @@ import ThemeToggler from "./ThemeToggler"
 const NAV = [
     { href: "/", label: "All Results" },
     { href: "/waterfall", label: "Waterfall" },
+    { href: "/regression", label: "Regression" },
 ]
 
 const ComfyMark = () => (

@@ -24,6 +24,8 @@ const conf = {
             // image
             'firebasestorage.googleapis.com',
             'storage.googleapis.com',
+            // regression results (worker repo results branch)
+            'raw.githubusercontent.com',
             'via.placeholder.com',
         ],
     },
