@@ -157,7 +157,7 @@ function WorkflowCard({
                 {rssPeak != null && <Stat label="Peak RSS" value={gb(rssPeak)} />}
                 {comfyVersion && <Stat label="ComfyUI" value={comfyVersion} />}
                 {torchVersion && <Stat label="Torch" value={torchVersion} />}
-                {pythonVersion && <Stat label="Python" value={pythonVersion} />}
+                {pythonVersion && <Stat label="Python" value={pythonVersion.split(' ')[0]} />}
             </div>
 
             {driftNotes.length > 0 && (
