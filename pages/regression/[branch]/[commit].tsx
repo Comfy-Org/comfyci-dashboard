@@ -38,6 +38,22 @@ function Figure({ src, caption }: { src: string; caption: string }) {
     )
 }
 
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+    return (
+        <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-wider text-ash-500 dark:text-smoke-800">
+                {label}
+            </div>
+            <div className="font-mono text-xs tabular-nums text-charcoal-800 dark:text-smoke-200">
+                {value}
+            </div>
+        </div>
+    )
+}
+
+const gb = (mb: number | null | undefined) =>
+    mb == null ? null : `${(mb / 1024).toFixed(1)} GB`
+
 function WorkflowCard({
     branch,
     commit,
@@ -48,9 +64,34 @@ function WorkflowCard({
     result: WorkflowRegressionResult
 }) {
     const { data: run } = useRunRecord(branch, commit, result.workflow_id)
+    const { data: prevRun } = useRunRecord(
+        branch,
+        result.previous_commit ?? undefined,
+        result.workflow_id
+    )
     const pngs = (run?.outputs ?? []).filter(
         (o) => o.filename.endsWith('.png') && !o.truncated
     )
+
+    const timings = run?.timings ?? result.timings
+    const exec = timings?.prompt_exec_s
+    const prevExec = prevRun?.timings?.prompt_exec_s
+    const execDeltaPct =
+        exec != null && prevExec != null && prevExec > 0
+            ? ((exec - prevExec) / prevExec) * 100
+            : null
+    const vramPeak = run?.vram_peak_mb ?? result.vram_peak_mb
+    const rssPeak = run?.rss_peak_mb ?? result.rss_peak_mb
+    const comfyVersion = run?.comfy_version ?? result.comfy_version
+    const torchVersion = run?.torch_version ?? result.torch_version
+    const pythonVersion = run?.python_version ?? result.python_version
+
+    const validation = run?.validation
+    const driftNotes = [
+        ...(validation?.missing_nodes ?? []).map((n) => `missing node class: ${n}`),
+        ...(validation?.stripped_inputs ?? []).map((n) => `input not in this commit's schema, stripped: ${n}`),
+        ...(validation?.filled_defaults ?? []).map((n) => `missing input filled from schema default: ${n}`),
+    ]
     const showGoldenFigures =
         result.vs_golden && !result.vs_golden.identical && !result.vs_golden.error
     const showPrevFigures =
@@ -67,9 +108,6 @@ function WorkflowCard({
                 </div>
                 <div className="text-xs text-ash-500 dark:text-smoke-800">
                     {result.gpu_name && <span>{result.gpu_name} · </span>}
-                    {result.timings?.prompt_exec_s != null && (
-                        <span>exec {result.timings.prompt_exec_s.toFixed(1)}s · </span>
-                    )}
                     {result.golden_tag && <span>golden: {result.golden_tag} · </span>}
                     {result.previous_commit && (
                         <span>
@@ -84,6 +122,57 @@ function WorkflowCard({
                     )}
                 </div>
             </div>
+
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-smoke-200/40 dark:bg-charcoal-700/40 px-4 py-2.5">
+                {exec != null && (
+                    <Stat
+                        label="Exec"
+                        value={
+                            <>
+                                {exec.toFixed(1)}s
+                                {execDeltaPct != null && (
+                                    <span
+                                        className={
+                                            execDeltaPct > 10
+                                                ? 'text-red-400'
+                                                : 'text-ash-500 dark:text-smoke-800'
+                                        }
+                                    >
+                                        {' '}
+                                        ({execDeltaPct >= 0 ? '+' : ''}
+                                        {execDeltaPct.toFixed(1)}% vs prev)
+                                    </span>
+                                )}
+                            </>
+                        }
+                    />
+                )}
+                {timings?.server_start_s != null && (
+                    <Stat label="Server start" value={`${timings.server_start_s.toFixed(1)}s`} />
+                )}
+                {timings?.checkout_s != null && timings.checkout_s > 0 && (
+                    <Stat label="Checkout" value={`${timings.checkout_s.toFixed(1)}s`} />
+                )}
+                {vramPeak != null && <Stat label="Peak VRAM" value={gb(vramPeak)} />}
+                {rssPeak != null && <Stat label="Peak RSS" value={gb(rssPeak)} />}
+                {comfyVersion && <Stat label="ComfyUI" value={comfyVersion} />}
+                {torchVersion && <Stat label="Torch" value={torchVersion} />}
+                {pythonVersion && <Stat label="Python" value={pythonVersion} />}
+            </div>
+
+            {driftNotes.length > 0 && (
+                <div className="mt-3 rounded-lg bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-500">
+                    <span className="font-semibold">Schema drift</span> — the workflow was adapted
+                    to this commit&apos;s node schema:
+                    <ul className="mt-1 list-disc pl-5">
+                        {driftNotes.map((n) => (
+                            <li key={n} className="font-mono">
+                                {n}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             {(result.verdict === 'execution_error' || result.verdict === 'infra_error') && (
                 <p className="mt-3 rounded-lg bg-red-500/[0.08] px-3 py-2 text-sm text-red-400">
@@ -112,20 +201,27 @@ function WorkflowCard({
                     <SectionTitle>Output</SectionTitle>
                     <div className="mt-2 flex flex-wrap gap-3">
                         {pngs.slice(0, 4).map((o) => (
-                            <a
-                                key={o.filename}
-                                href={outputUrl(branch, commit, result.workflow_id, o.filename)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                <Image
-                                    src={outputUrl(branch, commit, result.workflow_id, o.filename)}
-                                    alt={o.filename}
-                                    width={160}
-                                    height={160}
-                                    className="h-40 w-40 rounded-lg border border-smoke-300 dark:border-charcoal-400/60 object-cover transition-transform hover:scale-105"
-                                />
-                            </a>
+                            <figure key={o.filename} className="w-40">
+                                <a
+                                    href={outputUrl(branch, commit, result.workflow_id, o.filename)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={o.sha256 ? `sha256 ${o.sha256}` : o.filename}
+                                >
+                                    <Image
+                                        src={outputUrl(branch, commit, result.workflow_id, o.filename)}
+                                        alt={o.filename}
+                                        width={160}
+                                        height={160}
+                                        className="h-40 w-40 rounded-lg border border-smoke-300 dark:border-charcoal-400/60 object-cover transition-transform hover:scale-105"
+                                    />
+                                </a>
+                                {o.sha256 && (
+                                    <figcaption className="mt-1 truncate font-mono text-[10px] text-ash-500 dark:text-smoke-800">
+                                        sha256 {o.sha256.slice(0, 16)}…
+                                    </figcaption>
+                                )}
+                            </figure>
                         ))}
                     </div>
                 </div>
