@@ -61,14 +61,23 @@ export interface WorkflowRegressionResult {
     comfy_version?: string | null
     torch_version?: string | null
     python_version?: string | null
+    output_sha256?: string | null
+    thumbnail?: string | null
     error?: string
 }
 
 export interface RegressionSummary {
+    schema_version?: number
     branch: string
     commit: string
     run_ts: number
     overall: 'pass' | 'fail'
+    // Additive v2 fields; older runs simply lack them.
+    has_infra_error?: boolean
+    commit_meta?: CommitMeta | null
+    tested_range?: TestedRange | null
+    lane?: string | null
+    env?: RunEnv | null
     workflows: Record<string, WorkflowRegressionResult>
 }
 
@@ -89,4 +98,155 @@ export interface RunRecord {
     rss_peak_mb?: number | null
     timings?: RunTimings
     validation?: ValidationReport
+    env?: RunEnv | null
+}
+
+// ── Additive v2 metadata on per-run files ──
+
+export interface CommitMeta {
+    subject: string
+    author: string | null
+    committed_ts: number | null
+    parents: string[]
+    pr: number | null
+}
+
+export interface TestedRange {
+    prev: string | null
+    commits_between: number | null
+    compare_url: string
+}
+
+export interface RunEnv {
+    python?: string | null
+    torch?: string | null
+    cuda?: string | null
+    driver_version?: string | null
+    image_sha?: string | null
+    runtime_backends?: string[] | Record<string, string | number | boolean> | string | null
+}
+
+// ── Golden baseline metadata: golden/<wf>/current.json and golden/<wf>/<tag>/blessed.json ──
+
+export interface GoldenCurrent {
+    tag: string
+    blessed_by: string
+    blessed_ts: number
+    reason?: string
+    supersedes?: string
+    source?: string
+    output_sha256?: string
+}
+
+export interface BlessedInfo {
+    tag: string
+    commit: string
+    gpu_name: string
+    torch_version: string
+    generated_by: string
+    generated_ts: number
+    python_version?: string
+    cuda?: string
+    driver_version?: string
+    lane?: string
+    image_sha?: string
+    reason?: string
+    previous_tag?: string
+}
+
+// ── Published run index: index/lanes.json, index/<branch>/<lane>.json and monthly shards ──
+
+// Layout 1 is the legacy tree (runs/, golden/, latest/ at the base); layout 2 nests
+// the same tree under lanes/<lane id>/.
+export type LaneLayout = 1 | 2
+
+export interface LaneLatest {
+    commit: string
+    run_ts: number
+    overall: 'pass' | 'fail'
+}
+
+export interface LaneInfo {
+    label: string
+    python: string
+    torch: string
+    cuda: string
+    gpu: string
+    cadence: 'per-commit' | 'nightly' | 'weekly'
+    blocking: boolean
+    role: 'primary' | 'lane' | 'legacy'
+    layout: LaneLayout
+    branches: Record<string, { latest: LaneLatest; count: number; shards: string[] }>
+    goldens: Record<string, { tag: string; sha: string | null }>
+}
+
+export interface LanesIndex {
+    schema_version: number
+    generated_ts: number
+    primary: string
+    lanes: Record<string, LaneInfo>
+}
+
+// new_drift: failed vs golden and the output differs from the previous tested run (the
+// change happened at this commit). inherited: failed but bit-identical to the previous,
+// also failing, run. Null otherwise.
+export type DriftKind = 'new_drift' | 'inherited'
+
+export interface IndexWorkflowCell {
+    v: RegressionVerdict
+    d: DriftKind | null
+    sha: string | null
+    mse: number | null
+    psnr: number | null
+    pct: number | null
+    pv: boolean | null
+    exec: number | null
+    vram: number | null
+    g: string | null
+    th: string | null
+}
+
+export interface IndexEntry {
+    c: string
+    t: number
+    o: 'pass' | 'fail'
+    infra: boolean
+    cv: string | null
+    m: { s: string; a: string | null; pr: number | null; ct: number | null } | null
+    prev: string | null
+    range: { n: number | null; url: string } | null
+    w: Record<string, IndexWorkflowCell>
+    s: Record<string, [number, number, number]> | null
+}
+
+// Start of the oldest consecutive failing chain per workflow, computed by the worker.
+export interface FirstBad {
+    commit: string
+    prev_good: string | null
+    run_ts: number
+    pr: number | null
+    author: string | null
+    golden: string | null
+    runs: number
+}
+
+export interface IndexHead {
+    schema_version: number
+    branch: string
+    lane: string
+    layout: LaneLayout
+    generated_ts: number
+    count: number
+    shards: string[]
+    latest: LaneLatest
+    first_bad: Record<string, FirstBad>
+    entries: IndexEntry[]
+}
+
+export interface IndexShard {
+    schema_version: number
+    branch: string
+    lane: string
+    shard: string
+    entries: IndexEntry[]
 }
