@@ -3,6 +3,8 @@ import { Tooltip } from 'flowbite-react';
 interface OSStatusButtonProps {
     text: string;
     status: string;
+    /** Tooltip text; defaults to the status's generic label. */
+    title?: string;
     onClick?: () => void;
 }
 
@@ -22,6 +24,18 @@ const STATUS_STYLES: Record<string, { label: string; classes: string; dot: strin
         classes: 'bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/30 hover:bg-emerald-500/25',
         dot: 'bg-emerald-500',
     },
+    // Static amber (no pulse): a state that was acknowledged, e.g. accepted drift.
+    amber: {
+        label: 'Accepted',
+        classes: 'bg-amber-400/15 text-amber-600 dark:text-amber-300 ring-1 ring-inset ring-amber-400/40 hover:bg-amber-400/25',
+        dot: 'bg-amber-400',
+    },
+    // Outlined, de-emphasised failure: still red-ringed, but nothing changed here.
+    muted: {
+        label: 'Unchanged',
+        classes: 'bg-transparent text-ash-500 dark:text-smoke-700 ring-1 ring-inset ring-red-500/40 hover:bg-red-500/10',
+        dot: 'bg-red-500/50',
+    },
     default: {
         label: 'Unknown Status',
         classes: 'bg-charcoal-300/40 text-smoke-700 ring-1 ring-inset ring-charcoal-300/50 hover:bg-charcoal-300/60',
@@ -29,11 +43,11 @@ const STATUS_STYLES: Record<string, { label: string; classes: string; dot: strin
     },
 };
 
-export const WorkflowStatusButton: React.FC<OSStatusButtonProps> = ({ text, status, onClick }) => {
+export const WorkflowStatusButton: React.FC<OSStatusButtonProps> = ({ text, status, title, onClick }) => {
     const style = STATUS_STYLES[status] || STATUS_STYLES.default;
 
     return (
-        <Tooltip content={style.label} placement="top">
+        <Tooltip content={title ?? style.label} placement="top">
             <button
                 type="button"
                 onClick={onClick}
