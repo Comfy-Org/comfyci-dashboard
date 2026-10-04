@@ -1,0 +1,215 @@
+import Link from 'next/link'
+import React from 'react'
+import { RegressionBadge } from './RegressionBadge'
+import type { DisplayState } from './RegressionBadge'
+import { Surface, SectionTitle } from './Surface'
+import { COMFY_REPO, useGoldenCurrent } from '../src/regression/client'
+import type { LaneRef } from '../src/regression/client'
+import type {
+    ComparisonMetrics,
+    FirstBad,
+    IndexHead,
+    RegressionSummary,
+    Thresholds,
+    WorkflowRegressionResult,
+} from '../src/regression/types'
+import { shortDate } from '../utils/time'
+
+const extLink = 'hover:text-electric hover:underline'
+
+// "MSE 3.44 > 2.0" style clauses, one per metric, flagged when the threshold is crossed.
+function metricClauses(m: ComparisonMetrics, t: Thresholds | null): { text: string; bad: boolean }[] {
+    const out: { text: string; bad: boolean }[] = []
+    if (m.mean_mse != null) {
+        const bad = t != null && m.mean_mse > t.max_mean_mse
+        out.push({ text: `MSE ${m.mean_mse.toFixed(2)}${t ? ` ${bad ? '>' : '≤'} ${t.max_mean_mse}` : ''}`, bad })
+    }
+    if (m.mean_psnr_db != null) {
+        const bad = t != null && m.mean_psnr_db < t.min_mean_psnr_db
+        out.push({ text: `PSNR ${m.mean_psnr_db.toFixed(1)} dB${t ? ` ${bad ? '<' : '≥'} ${t.min_mean_psnr_db}` : ''}`, bad })
+    }
+    if (m.mean_pct_pixels_changed != null) {
+        const bad = t != null && m.mean_pct_pixels_changed > t.max_pct_pixels_changed
+        out.push({
+            text: `${m.mean_pct_pixels_changed.toFixed(1)}% px${t ? ` ${bad ? '>' : '≤'} ${t.max_pct_pixels_changed}%` : ''}`,
+            bad,
+        })
+    }
+    return out
+}
+
+function FailingWorkflow({
+    branch,
+    lane,
+    result,
+    state,
+    firstBad,
+    firstBadSubject,
+}: {
+    branch: string
+    lane: LaneRef
+    result: WorkflowRegressionResult
+    state: DisplayState
+    firstBad?: FirstBad
+    firstBadSubject?: string
+}) {
+    const { data: golden } = useGoldenCurrent(result.workflow_id, lane)
+    const href = (sha: string) => `/regression/${branch}/${sha}?lane=${lane.id}`
+    const vg = result.vs_golden
+    const vp = result.vs_previous
+    const clauses = vg && !vg.error ? metricClauses(vg, result.thresholds_used) : []
+    const origin = firstBad
+        ? [
+              firstBadSubject,
+              firstBad.pr != null ? (
+                  <a key="pr" href={`${COMFY_REPO}/pull/${firstBad.pr}`} target="_blank" rel="noopener noreferrer" className={extLink}>
+                      #{firstBad.pr}
+                  </a>
+              ) : null,
+              firstBad.author ? `by ${firstBad.author}` : null,
+          ].filter((x) => x != null && x !== '')
+        : []
+
+    return (
+        <div className="flex flex-col gap-1 border-t border-smoke-200 dark:border-charcoal-400/40 pt-3">
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm font-semibold text-charcoal-800 dark:text-smoke-100">
+                    {result.workflow_id}
+                </span>
+                <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
+            </div>
+            <p className="text-sm text-charcoal-800 dark:text-smoke-200">
+                vs golden {result.golden_tag ?? golden?.tag ?? '—'}
+                {golden && (
+                    <span className="text-ash-500 dark:text-smoke-800">
+                        {' '}
+                        (blessed {shortDate(golden.blessed_ts)} by {golden.blessed_by}
+                        {golden.reason ? `, ${golden.reason}` : ''})
+                    </span>
+                )}
+                :{' '}
+                {vg?.error ? (
+                    <span className="text-red-400">{vg.error}</span>
+                ) : clauses.length ? (
+                    clauses.map((c, i) => (
+                        <span key={c.text}>
+                            {i > 0 && ', '}
+                            <span className={c.bad ? 'font-semibold text-red-400' : ''}>{c.text}</span>
+                        </span>
+                    ))
+                ) : (
+                    'no comparison'
+                )}
+                {vp && !vp.error && result.previous_commit && (
+                    <>
+                        ; outputs {vp.identical ? 'unchanged' : 'changed'} vs previous run{' '}
+                        <Link href={href(result.previous_commit)} className={`font-mono ${extLink}`}>
+                            {result.previous_commit.slice(0, 7)}
+                        </Link>
+                        {!vp.identical && vp.mean_mse != null && ` (MSE ${vp.mean_mse.toFixed(2)})`}
+                    </>
+                )}
+            </p>
+            {firstBad && (
+                <p className="text-sm text-ash-500 dark:text-smoke-800">
+                    Failing since{' '}
+                    <Link
+                        href={href(firstBad.commit)}
+                        className="font-mono font-semibold text-charcoal-800 dark:text-smoke-200 hover:underline"
+                    >
+                        {firstBad.commit.slice(0, 7)}
+                    </Link>
+                    {origin.length > 0 && (
+                        <>
+                            {' ('}
+                            {origin.map((part, i) => (
+                                <React.Fragment key={i}>
+                                    {i > 0 && ', '}
+                                    {part}
+                                </React.Fragment>
+                            ))}
+                            )
+                        </>
+                    )}{' '}
+                    — {firstBad.runs} tested run{firstBad.runs === 1 ? '' : 's'} ·{' '}
+                    <a
+                        href={`${COMFY_REPO}/commit/${firstBad.commit}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={extLink}
+                    >
+                        GitHub
+                    </a>
+                    {firstBad.prev_good && (
+                        <>
+                            {' '}
+                            · last good{' '}
+                            <Link href={href(firstBad.prev_good)} className={`font-mono ${extLink}`}>
+                                {firstBad.prev_good.slice(0, 7)}
+                            </Link>
+                        </>
+                    )}
+                </p>
+            )}
+        </div>
+    )
+}
+
+/** Verdict counts plus one explanatory line per failing workflow, above the cards. */
+export const RegressionSummaryHeader: React.FC<{
+    branch: string
+    commit: string
+    lane: LaneRef
+    summary: RegressionSummary
+    states: Record<string, DisplayState>
+    head?: IndexHead | null
+}> = ({ branch, commit, lane, summary, states, head }) => {
+    const results = Object.values(summary.workflows).sort((a, b) =>
+        a.workflow_id.localeCompare(b.workflow_id)
+    )
+    const count = (pred: (r: WorkflowRegressionResult) => boolean) => results.filter(pred).length
+    const pass = count((r) => r.verdict === 'pass')
+    const fail = count((r) => r.verdict === 'fail')
+    const accepted = count((r) => states[r.workflow_id]?.verdict === 'accepted')
+    const failing = results.filter((r) => r.verdict === 'fail')
+    const subjectOf = (fb: FirstBad) =>
+        head?.entries.find((e) => e.c === fb.commit)?.m?.s ??
+        (fb.commit === commit ? summary.commit_meta?.subject : undefined)
+
+    return (
+        <Surface className="mb-5 p-5">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <SectionTitle>Summary</SectionTitle>
+                <span className="text-sm text-charcoal-800 dark:text-smoke-200">
+                    <span className="font-semibold text-emerald-500">{pass}</span> pass ·{' '}
+                    <span className={`font-semibold ${fail ? 'text-red-400' : ''}`}>{fail}</span> fail ·{' '}
+                    <span className="font-semibold">{results.length - pass - fail}</span> other
+                    {accepted > 0 && (
+                        <span className="text-ash-500 dark:text-smoke-800">
+                            {' '}
+                            ({accepted} accepted drift)
+                        </span>
+                    )}
+                </span>
+            </div>
+            {failing.length > 0 && (
+                <div className="mt-3 flex flex-col gap-3">
+                    {failing.map((r) => {
+                        const fb = head?.first_bad?.[r.workflow_id]
+                        return (
+                            <FailingWorkflow
+                                key={r.workflow_id}
+                                branch={branch}
+                                lane={lane}
+                                result={r}
+                                state={states[r.workflow_id] ?? { verdict: r.verdict, inherited: false }}
+                                firstBad={fb}
+                                firstBadSubject={fb ? subjectOf(fb) : undefined}
+                            />
+                        )
+                    })}
+                </div>
+            )}
+        </Surface>
+    )
+}

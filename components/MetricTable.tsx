@@ -1,9 +1,12 @@
+import type { ReactNode } from 'react'
 import type { ComparisonMetrics, Thresholds } from '../src/regression/types'
 
 interface MetricTableProps {
     vsGolden: ComparisonMetrics | null
     vsPrevious: ComparisonMetrics | null
     thresholds: Thresholds | null
+    /** The golden's re-run compared with itself: how much drift the setup produces on its own. */
+    noiseFloor?: ComparisonMetrics | null
 }
 
 const fmt = (v: number | null | undefined, digits = 2) =>
@@ -14,7 +17,7 @@ function MetricRow({
     metrics,
     thresholds,
 }: {
-    label: string
+    label: ReactNode
     metrics: ComparisonMetrics
     thresholds: Thresholds | null
 }) {
@@ -79,7 +82,12 @@ function MetricRow({
     )
 }
 
-export const MetricTable: React.FC<MetricTableProps> = ({ vsGolden, vsPrevious, thresholds }) => {
+export const MetricTable: React.FC<MetricTableProps> = ({
+    vsGolden,
+    vsPrevious,
+    thresholds,
+    noiseFloor,
+}) => {
     if (!vsGolden && !vsPrevious) return null
     return (
         <div className="overflow-x-auto scrollbar-thin">
@@ -100,6 +108,20 @@ export const MetricTable: React.FC<MetricTableProps> = ({ vsGolden, vsPrevious, 
                     )}
                     {vsPrevious && (
                         <MetricRow label="vs Previous" metrics={vsPrevious} thresholds={null} />
+                    )}
+                    {noiseFloor && (
+                        <MetricRow
+                            label={
+                                <>
+                                    Noise floor{' '}
+                                    <span className="font-normal text-ash-500 dark:text-smoke-800">
+                                        (golden re-run)
+                                    </span>
+                                </>
+                            }
+                            metrics={noiseFloor}
+                            thresholds={thresholds}
+                        />
                     )}
                 </tbody>
             </table>
