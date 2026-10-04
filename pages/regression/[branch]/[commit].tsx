@@ -4,18 +4,34 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
 import { FiExternalLink } from 'react-icons/fi'
+import { CommitMetaChip } from '../../../components/CommitMetaChip'
+import { LaneTabs } from '../../../components/LaneSelect'
 import { MetricTable } from '../../../components/MetricTable'
-import { RegressionBadge } from '../../../components/RegressionBadge'
+import { RegressionBadge, displayVerdict } from '../../../components/RegressionBadge'
+import type { DisplayState } from '../../../components/RegressionBadge'
+import { ReblessCallout } from '../../../components/ReblessCallout'
+import { RegressionSummaryHeader } from '../../../components/RegressionSummaryHeader'
 import { Surface, SectionTitle } from '../../../components/Surface'
 import {
+    COMFY_REPO,
     figureUrl,
     outputUrl,
+    resolveLane,
+    useIndexHead,
+    useLanes,
+    useNoiseFloor,
     useRegressionSummary,
     useRunRecord,
 } from '../../../src/regression/client'
-import type { WorkflowRegressionResult } from '../../../src/regression/types'
-
-const COMFY_REPO = 'https://github.com/Comfy-Org/ComfyUI'
+import type { LaneRef } from '../../../src/regression/client'
+import type {
+    CommitMeta,
+    DriftKind,
+    IndexWorkflowCell,
+    RegressionSummary,
+    RunEnv,
+    WorkflowRegressionResult,
+} from '../../../src/regression/types'
 
 function Figure({ src, caption }: { src: string; caption: string }) {
     const [failed, setFailed] = React.useState(false)
@@ -54,20 +70,69 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 const gb = (mb: number | null | undefined) =>
     mb == null ? null : `${(mb / 1024).toFixed(1)} GB`
 
+const formatBackends = (b: RunEnv['runtime_backends']) => {
+    if (!b) return null
+    if (typeof b === 'string') return b
+    if (Array.isArray(b)) return b.join(', ')
+    return Object.entries(b)
+        .map(([k, v]) => (v === true ? k : `${k}=${v}`))
+        .join(', ')
+}
+
+// How a workflow result reads on this page once the index entry's drift info is folded
+// in. Without an entry, a failing run that is bit-identical to the previous run
+// inherited that run's drift: the change did not happen at this commit.
+function workflowState(
+    result: WorkflowRegressionResult,
+    cell: IndexWorkflowCell | undefined,
+    goldenSha: string | null | undefined
+): DisplayState {
+    const drift: DriftKind | null = cell
+        ? cell.d
+        : result.verdict === 'fail' && result.vs_previous?.identical
+          ? 'inherited'
+          : null
+    return displayVerdict(result.verdict, cell?.sha ?? result.output_sha256, goldenSha, drift)
+}
+
+// The worker's overall is pass/fail; soften it the same way the history table does
+// when every failure is inherited or accepted.
+function overallState(summary: RegressionSummary, states: Record<string, DisplayState>): DisplayState {
+    if (summary.overall === 'pass') return { verdict: 'pass', inherited: false }
+    const all = Object.values(states)
+    const failing = all.filter((s) => s.verdict === 'fail')
+    if (failing.length === 0 && all.some((s) => s.verdict === 'accepted')) {
+        return { verdict: 'accepted', inherited: false }
+    }
+    return { verdict: 'fail', inherited: failing.length > 0 && failing.every((s) => s.inherited) }
+}
+
 function WorkflowCard({
     branch,
     commit,
+    lane,
     result,
+    state,
+    summaryEnv,
 }: {
     branch: string
     commit: string
+    lane: LaneRef
     result: WorkflowRegressionResult
+    state: DisplayState
+    summaryEnv?: RunEnv | null
 }) {
-    const { data: run } = useRunRecord(branch, commit, result.workflow_id)
+    const { data: run } = useRunRecord(branch, commit, result.workflow_id, lane)
     const { data: prevRun } = useRunRecord(
         branch,
         result.previous_commit ?? undefined,
-        result.workflow_id
+        result.workflow_id,
+        lane
+    )
+    const { data: noiseFloor } = useNoiseFloor(
+        result.workflow_id,
+        result.golden_tag ?? undefined,
+        lane
     )
     const pngs = (run?.outputs ?? []).filter(
         (o) => o.filename.endsWith('.png') && !o.truncated
@@ -80,11 +145,13 @@ function WorkflowCard({
         exec != null && prevExec != null && prevExec > 0
             ? ((exec - prevExec) / prevExec) * 100
             : null
+    const env = run?.env ?? summaryEnv
     const vramPeak = run?.vram_peak_mb ?? result.vram_peak_mb
     const rssPeak = run?.rss_peak_mb ?? result.rss_peak_mb
     const comfyVersion = run?.comfy_version ?? result.comfy_version
-    const torchVersion = run?.torch_version ?? result.torch_version
-    const pythonVersion = run?.python_version ?? result.python_version
+    const torchVersion = run?.torch_version ?? result.torch_version ?? env?.torch
+    const pythonVersion = run?.python_version ?? result.python_version ?? env?.python
+    const backends = formatBackends(env?.runtime_backends)
 
     const validation = run?.validation
     const driftNotes = [
@@ -104,7 +171,7 @@ function WorkflowCard({
                     <h3 className="text-lg font-bold text-charcoal-800 dark:text-white">
                         {result.workflow_id}
                     </h3>
-                    <RegressionBadge verdict={result.verdict} />
+                    <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
                 </div>
                 <div className="text-xs text-ash-500 dark:text-smoke-800">
                     {result.gpu_name && <span>{result.gpu_name} · </span>}
@@ -113,7 +180,7 @@ function WorkflowCard({
                         <span>
                             prev:{' '}
                             <Link
-                                href={`/regression/${branch}/${result.previous_commit}`}
+                                href={`/regression/${branch}/${result.previous_commit}?lane=${lane.id}`}
                                 className="font-mono hover:text-electric hover:underline"
                             >
                                 {result.previous_commit.slice(0, 7)}
@@ -158,6 +225,9 @@ function WorkflowCard({
                 {comfyVersion && <Stat label="ComfyUI" value={comfyVersion} />}
                 {torchVersion && <Stat label="Torch" value={torchVersion} />}
                 {pythonVersion && <Stat label="Python" value={pythonVersion.split(' ')[0]} />}
+                {env?.cuda && <Stat label="CUDA" value={env.cuda} />}
+                {env?.driver_version && <Stat label="Driver" value={env.driver_version} />}
+                {backends && <Stat label="Backends" value={backends} />}
             </div>
 
             {driftNotes.length > 0 && (
@@ -193,8 +263,13 @@ function WorkflowCard({
                     vsGolden={result.vs_golden}
                     vsPrevious={result.vs_previous}
                     thresholds={result.thresholds_used}
+                    noiseFloor={noiseFloor}
                 />
             </div>
+
+            {state.verdict === 'fail' && (
+                <ReblessCallout workflowId={result.workflow_id} commit={commit} lane={lane} />
+            )}
 
             {pngs.length > 0 && (
                 <div className="mt-4">
@@ -203,13 +278,13 @@ function WorkflowCard({
                         {pngs.slice(0, 4).map((o) => (
                             <figure key={o.filename} className="w-40">
                                 <a
-                                    href={outputUrl(branch, commit, result.workflow_id, o.filename)}
+                                    href={outputUrl(branch, commit, result.workflow_id, o.filename, lane)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     title={o.sha256 ? `sha256 ${o.sha256}` : o.filename}
                                 >
                                     <Image
-                                        src={outputUrl(branch, commit, result.workflow_id, o.filename)}
+                                        src={outputUrl(branch, commit, result.workflow_id, o.filename, lane)}
                                         alt={o.filename}
                                         width={160}
                                         height={160}
@@ -234,11 +309,11 @@ function WorkflowCard({
                         {showGoldenFigures && (
                             <>
                                 <Figure
-                                    src={figureUrl(branch, commit, result.workflow_id, 'side_by_side_golden.png')}
+                                    src={figureUrl(branch, commit, result.workflow_id, 'side_by_side_golden.png', lane)}
                                     caption="Golden vs this commit"
                                 />
                                 <Figure
-                                    src={figureUrl(branch, commit, result.workflow_id, 'diff_heatmap_golden.png')}
+                                    src={figureUrl(branch, commit, result.workflow_id, 'diff_heatmap_golden.png', lane)}
                                     caption="Abs-diff heatmap vs golden (worst frame)"
                                 />
                             </>
@@ -246,11 +321,11 @@ function WorkflowCard({
                         {showPrevFigures && (
                             <>
                                 <Figure
-                                    src={figureUrl(branch, commit, result.workflow_id, 'side_by_side_prev.png')}
+                                    src={figureUrl(branch, commit, result.workflow_id, 'side_by_side_prev.png', lane)}
                                     caption="Previous run vs this commit"
                                 />
                                 <Figure
-                                    src={figureUrl(branch, commit, result.workflow_id, 'diff_heatmap_prev.png')}
+                                    src={figureUrl(branch, commit, result.workflow_id, 'diff_heatmap_prev.png', lane)}
                                     caption="Abs-diff heatmap vs previous (worst frame)"
                                 />
                             </>
@@ -266,9 +341,16 @@ export default function RegressionCommitPage() {
     const router = useRouter()
     const branch = typeof router.query.branch === 'string' ? router.query.branch : undefined
     const commit = typeof router.query.commit === 'string' ? router.query.commit : undefined
-    const { data: summary, isLoading } = useRegressionSummary(branch, commit)
+    const laneParam = typeof router.query.lane === 'string' ? router.query.lane : undefined
+    const lanesQuery = useLanes()
+    const lane = resolveLane(lanesQuery.data, laneParam)
+    // Wait for lanes.json so the summary is fetched from the right lane tree the first time.
+    const ready = router.isReady && !lanesQuery.isPending
+    const summaryQuery = useRegressionSummary(ready ? branch : undefined, commit, lane)
+    const summary = summaryQuery.data
+    const { data: head } = useIndexHead(ready ? branch : undefined, lane.id)
 
-    if (!branch || !commit || isLoading) {
+    if (!branch || !commit || !ready || summaryQuery.isPending) {
         return (
             <div className="flex justify-center items-center py-24">
                 <Spinner size="xl" />
@@ -284,19 +366,39 @@ export default function RegressionCommitPage() {
                     <span className="text-sm text-ash-500 dark:text-smoke-800">
                         No GPU regression run has been published for{' '}
                         <span className="font-mono">{commit.slice(0, 12)}</span> on{' '}
-                        <span className="font-mono">{branch}</span>.
+                        <span className="font-mono">{branch}</span>
+                        {lane.info && <> ({lane.info.label})</>}.
                     </span>
-                    <Link href="/regression" className="mt-2 text-sm text-electric hover:underline">
-                        Back to regression overview
+                    <Link
+                        href={`/regression?lane=${lane.id}`}
+                        className="mt-2 text-sm text-electric hover:underline"
+                    >
+                        Back to regression history
                     </Link>
                 </Surface>
             </div>
         )
     }
 
+    const entry = head?.entries.find((e) => e.c === commit)
+    const goldens = lane.info?.goldens
     const workflows = Object.values(summary.workflows).sort((a, b) =>
         a.workflow_id.localeCompare(b.workflow_id)
     )
+    const states: Record<string, DisplayState> = {}
+    for (const wf of workflows) {
+        states[wf.workflow_id] = workflowState(
+            wf,
+            entry?.w[wf.workflow_id],
+            goldens?.[wf.workflow_id]?.sha
+        )
+    }
+    const overall = overallState(summary, states)
+    const meta: CommitMeta | null =
+        summary.commit_meta ??
+        (entry?.m
+            ? { subject: entry.m.s, author: entry.m.a, committed_ts: entry.m.ct, parents: [], pr: entry.m.pr }
+            : null)
 
     return (
         <div className="pt-8">
@@ -304,28 +406,56 @@ export default function RegressionCommitPage() {
                 <div>
                     <h1 className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
                         GPU Regression
-                        <RegressionBadge verdict={summary.overall === 'pass' ? 'pass' : 'fail'} />
+                        <RegressionBadge verdict={overall.verdict} inherited={overall.inherited} />
                     </h1>
                     <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
                         Fixed-seed output comparison on{' '}
                         <span className="font-mono">{branch}</span> ·{' '}
                         {new Date(summary.run_ts * 1000).toLocaleString()}
+                        {lane.info && <> · {lane.info.label}</>}
                     </p>
                 </div>
-                <a
-                    href={`${COMFY_REPO}/commit/${commit}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 font-mono text-sm text-charcoal-800 dark:text-smoke-200 hover:border-electric/50"
-                >
-                    {commit.slice(0, 12)}
-                    <FiExternalLink className="h-3.5 w-3.5" />
-                </a>
+                <div className="flex flex-col items-end gap-2">
+                    <LaneTabs
+                        lanes={lanesQuery.data}
+                        value={lane.id}
+                        hrefFor={(id) => `/regression/${branch}/${commit}?lane=${id}`}
+                    />
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        {meta && <CommitMetaChip meta={meta} />}
+                        <a
+                            href={`${COMFY_REPO}/commit/${commit}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 font-mono text-sm text-charcoal-800 dark:text-smoke-200 hover:border-electric/50"
+                        >
+                            {commit.slice(0, 12)}
+                            <FiExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                    </div>
+                </div>
             </div>
+
+            <RegressionSummaryHeader
+                branch={branch}
+                commit={commit}
+                lane={lane}
+                summary={summary}
+                states={states}
+                head={head}
+            />
 
             <div className="flex flex-col gap-5">
                 {workflows.map((wf) => (
-                    <WorkflowCard key={wf.workflow_id} branch={branch} commit={commit} result={wf} />
+                    <WorkflowCard
+                        key={wf.workflow_id}
+                        branch={branch}
+                        commit={commit}
+                        lane={lane}
+                        result={wf}
+                        state={states[wf.workflow_id]}
+                        summaryEnv={summary.env}
+                    />
                 ))}
             </div>
         </div>
