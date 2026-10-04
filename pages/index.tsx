@@ -1,11 +1,12 @@
 import { Spinner } from 'flowbite-react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
 import { CiFilter } from 'react-icons/ci'
 import { FiExternalLink } from 'react-icons/fi'
 import { ClearableLabel } from '../components/Labels/ClearableLabel'
+import { LegacyBanner } from '../components/LegacyBanner'
+import { NoOutput, SafeThumb } from '../components/SafeThumb'
 import { WorkflowStatusButton } from '../components/StatusButton'
 import { StatsDashboard } from '../components/StatsDashboard'
 import { Surface, SectionTitle } from '../components/Surface'
@@ -13,10 +14,9 @@ import { BrandSelect } from '../components/Inputs'
 import { Pager } from '../components/Pager'
 import analytic from '../global/mixpanel'
 import { useGetBranch, useGetGitcommit, WorkflowRunStatus } from '../src/api/generated'
+import { DEFAULT_REPO, LEGACY_REPOS } from '../src/legacy/repos'
 import { formatDuration } from '../utils/format'
 import { StatusToColor, StatusToHumanText } from './workflow/[id]'
-
-const DEFAULT_REPO = 'comfyanonymous/ComfyUI'
 
 // Status filter options. The /gitcommit API has no status param, so this filters
 // the rows already loaded for the current page (see note rendered below the table).
@@ -40,7 +40,7 @@ function GitCommitsList() {
 
     const prevFilters = React.useRef({ filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage });
 
-    const { data: filteredJobResults, isLoading } = useGetGitcommit({
+    const { data: filteredJobResults, isLoading, isError } = useGetGitcommit({
         operatingSystem: filterOS == 'Select OS' ? undefined : filterOS,
         commitId: commitId == '' ? undefined : commitId,
         workflowName: workflowNameFilter == '' ? undefined : workflowNameFilter,
@@ -140,6 +140,8 @@ function GitCommitsList() {
                 </a>
             </div>
 
+            <LegacyBanner resultTimes={jobResults.map((r) => r.end_time ?? r.start_time ?? r.commit_time)} />
+
             {/* Dashboard */}
             <StatsDashboard results={jobResults} />
 
@@ -157,6 +159,24 @@ function GitCommitsList() {
                     )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                    <BrandSelect
+                        id="repo-select"
+                        value={repoFilter}
+                        onChange={(e) => {
+                            setRepoFilter(e.target.value);
+                            analytic.track('Change Repo Filter', { repo: e.target.value });
+                            setCurrentPage(1);
+                        }}
+                        className="w-60"
+                    >
+                        {/* Keep a ?repo= value from the URL selectable even when it is not a known repo. */}
+                        {!LEGACY_REPOS.includes(repoFilter) && <option value={repoFilter}>{repoFilter}</option>}
+                        {LEGACY_REPOS.map((repo) => (
+                            <option key={repo} value={repo}>
+                                {repo}
+                            </option>
+                        ))}
+                    </BrandSelect>
                     <BrandSelect
                         id="branch-select"
                         value={branchFilter}
@@ -203,7 +223,8 @@ function GitCommitsList() {
                     </BrandSelect>
                     <ClearableLabel
                         id="commit-id-input"
-                        label="Commit ID"
+                        label="Commit ID (internal id)"
+                        title="Matches the api.comfy.org commit UUID (commit_id), not the git sha. Use the filter icon on a row to fill it in."
                         value={commitId}
                         onChange={(s) => {
                             setCommitId(s);
@@ -228,6 +249,13 @@ function GitCommitsList() {
                 <div className="flex justify-center items-center py-24">
                     <Spinner size="xl" />
                 </div>
+            ) : isError ? (
+                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                    <span className="text-lg font-semibold">Could not load results from api.comfy.org</span>
+                    <span className="text-sm text-ash-500 dark:text-smoke-800">
+                        The request failed. Reload the page to try again.
+                    </span>
+                </Surface>
             ) : jobResults.length === 0 ? (
                 <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
                     <span className="text-lg font-semibold">No results found</span>
@@ -367,18 +395,15 @@ function GitCommitsList() {
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                     >
-                                                        <Image
+                                                        <SafeThumb
                                                             src={result.storage_file.public_url}
                                                             alt={result.workflow_name || 'output file'}
-                                                            width={72}
-                                                            height={72}
-                                                            className="h-[72px] w-[72px] rounded-lg border border-smoke-300 dark:border-charcoal-400/60 object-cover transition-transform hover:scale-105"
+                                                            size={72}
+                                                            className="h-[72px] w-[72px] transition-transform hover:scale-105"
                                                         />
                                                     </Link>
                                                 ) : (
-                                                    <div className="flex h-[72px] w-[72px] items-center justify-center rounded-lg border border-dashed border-smoke-400 dark:border-charcoal-400/60 text-[10px] text-ash-500 dark:text-smoke-800">
-                                                        no output
-                                                    </div>
+                                                    <NoOutput className="h-[72px] w-[72px]" />
                                                 )}
                                             </td>
 
@@ -405,7 +430,7 @@ function GitCommitsList() {
                                                     </Link>
                                                     {result.branch_name && result.commit_hash && (
                                                         <Link
-                                                            href={`/regression/${result.branch_name}/${result.commit_hash}`}
+                                                            href={`/regression/${encodeURIComponent(result.branch_name)}/${encodeURIComponent(result.commit_hash)}`}
                                                             className="text-[11px] font-medium text-ash-500 hover:text-electric hover:underline"
                                                         >
                                                             Regression

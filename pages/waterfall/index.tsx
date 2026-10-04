@@ -4,13 +4,12 @@ import { Spinner } from 'flowbite-react'
 import Link from 'next/link'
 import { FiExternalLink } from 'react-icons/fi'
 import { useRouter } from 'next/router'
-import { ClearableLabel } from '../../components/Labels/ClearableLabel'
+import { LegacyBanner } from '../../components/LegacyBanner'
 import { WorkflowStatusButton } from '../../components/StatusButton'
 import { Surface, SectionTitle } from '../../components/Surface'
 import { BrandSelect } from '../../components/Inputs'
 import { Pager } from '../../components/Pager'
-
-const DEFAULT_REPO = 'comfyanonymous/ComfyUI'
+import { DEFAULT_REPO, LEGACY_REPOS } from '../../src/legacy/repos'
 
 function formatTimestamp(ts?: string): string {
     if (!ts) return ''
@@ -22,13 +21,11 @@ function GitCommitsList() {
     const [currentPage, setCurrentPage] = React.useState(1)
     const onPageChange = (page: number) => setCurrentPage(page)
     const router = useRouter();
-    const [filterOS, setFilterOS] = React.useState<string>('Select OS')
     const [repoFilter, setRepoFilter] = React.useState<string>(DEFAULT_REPO)
     const [branchFilter, setBranchFilter] = React.useState<string>('master')
-    const [commitId, setCommitId] = React.useState<string>('')
-    const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')
-    const { data: filteredJobResults, isLoading } = useGetGitcommitsummary({
-        branchName: branchFilter == 'Select Branch' ? undefined : branchFilter,
+    const { data: filteredJobResults, isLoading, isError } = useGetGitcommitsummary({
+        // The blank <option> and its placeholder label both mean "all branches".
+        branchName: branchFilter === '' || branchFilter === 'Select Branch' ? undefined : branchFilter,
         page: currentPage,
         repoName: repoFilter,
         pageSize: 10,
@@ -96,12 +93,33 @@ function GitCommitsList() {
                 </a>
             </div>
 
+            <LegacyBanner resultTimes={(filteredJobResults?.commitSummaries ?? []).map((c) => c.timestamp)} />
+
             {/* Filters */}
             <Surface className="mb-6 p-4">
                 <div className="mb-3">
                     <SectionTitle>Filters</SectionTitle>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                    <BrandSelect
+                        id="repo-select"
+                        value={repoFilter}
+                        onChange={(e) => {
+                            const repo = e.target.value
+                            setRepoFilter(repo)
+                            setCurrentPage(1)
+                            router.push({ pathname: router.pathname, query: { ...router.query, repo } }, undefined, { shallow: true })
+                        }}
+                        className="w-60"
+                    >
+                        {/* Keep a ?repo= value from the URL selectable even when it is not a known repo. */}
+                        {!LEGACY_REPOS.includes(repoFilter) && <option value={repoFilter}>{repoFilter}</option>}
+                        {LEGACY_REPOS.map((repo) => (
+                            <option key={repo} value={repo}>
+                                {repo}
+                            </option>
+                        ))}
+                    </BrandSelect>
                     <BrandSelect
                         id="branch-select"
                         value={branchFilter}
@@ -118,33 +136,6 @@ function GitCommitsList() {
                             </option>
                         ))}
                     </BrandSelect>
-                    <BrandSelect
-                        id="os-select"
-                        value={filterOS}
-                        onChange={(e) => setFilterOS(e.target.value)}
-                        className="w-40"
-                    >
-                        <option value="">Select OS</option>
-                        <option value="linux">linux</option>
-                        <option value="macos">macos</option>
-                        <option value="windows">windows</option>
-                    </BrandSelect>
-                    <ClearableLabel
-                        id="commit-id-input"
-                        label="Commit ID"
-                        value={commitId}
-                        onChange={(s) => setCommitId(s)}
-                        onClear={() => setCommitId('')}
-                        disabled
-                    />
-                    <ClearableLabel
-                        id="workflow-id-input"
-                        label="Workflow Name"
-                        value={workflowNameFilter}
-                        onChange={(s) => setWorkflowFilter(s)}
-                        onClear={() => setWorkflowFilter('')}
-                        disabled
-                    />
                 </div>
             </Surface>
 
@@ -152,6 +143,13 @@ function GitCommitsList() {
                 <div className="flex justify-center items-center py-24">
                     <Spinner size="xl" />
                 </div>
+            ) : isError ? (
+                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                    <span className="text-lg font-semibold">Could not load results from api.comfy.org</span>
+                    <span className="text-sm text-ash-500 dark:text-smoke-800">
+                        The request failed. Reload the page to try again.
+                    </span>
+                </Surface>
             ) : !groupedResults || groupedResults.length === 0 ? (
                 <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
                     <span className="text-lg font-semibold">No commits found</span>
@@ -201,14 +199,11 @@ function GitCommitsList() {
                                                         {osStatus.map(({ os, status }) =>
                                                             <WorkflowStatusButton key={os} text={os} status={status}
                                                                 onClick={() => {
-                                                                    const query = {
-                                                                        os,
-                                                                        commitId,
-                                                                        repo: gitRepo,
-                                                                        branch: branchFilter,
-                                                                    };
-                                                                    // Update the URL with new query parameters
-                                                                    router.push({ pathname: '/', query });
+                                                                    // Drill into All Results for this repo, branch and platform.
+                                                                    router.push({
+                                                                        pathname: '/',
+                                                                        query: { repo: gitRepo, branch: branchFilter, os },
+                                                                    });
                                                                 }}
                                                             />
                                                         )}
