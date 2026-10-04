@@ -3,9 +3,9 @@ import { useGetWorkflowResult, WorkflowRunStatus } from "../../src/api/generated
 import { useRouter } from "next/router";
 import { toast } from 'react-toastify';
 import React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { FiExternalLink } from "react-icons/fi";
+import { SafeThumb } from "../../components/SafeThumb";
 import { WorkflowStatusButton } from "../../components/StatusButton";
 import { Surface, SectionTitle } from "../../components/Surface";
 import UsageGraph from "../../components/UsageGraph";
@@ -73,12 +73,11 @@ function WorkflowResultDetail() {
             <Surface className="brand-aura overflow-hidden">
                 <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center">
                     {workflowResult?.storage_file?.public_url && (
-                        <Image
+                        <SafeThumb
                             src={workflowResult.storage_file.public_url}
                             alt={workflowResult.workflow_name || "Job result"}
-                            width={200}
-                            height={200}
-                            className="h-48 w-48 shrink-0 rounded-xl border border-smoke-300 dark:border-charcoal-400/60 object-cover"
+                            size={200}
+                            className="h-48 w-48 shrink-0"
                         />
                     )}
                     <div className="min-w-0 flex-1">

@@ -114,7 +114,7 @@ export const StatsDashboard: React.FC<{ results: ActionJobResult[] }> = ({
                 <StatCard
                     label="Workflow Runs"
                     value={stats.total}
-                    sub="in current view"
+                    sub="page of 30 runs"
                     dotClass="bg-sapphire-700 dark:bg-electric"
                     valueClass="text-sapphire-700 dark:text-electric"
                 />
