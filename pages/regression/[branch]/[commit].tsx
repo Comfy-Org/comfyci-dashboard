@@ -26,7 +26,6 @@ import {
 import type { LaneRef } from '../../../src/regression/client'
 import type {
     CommitMeta,
-    DriftKind,
     IndexWorkflowCell,
     RegressionSummary,
     RunEnv,
@@ -80,19 +79,16 @@ const formatBackends = (b: RunEnv['runtime_backends']) => {
 }
 
 // How a workflow result reads on this page once the index entry's drift info is folded
-// in. Without an entry, a failing run that is bit-identical to the previous run
-// inherited that run's drift: the change did not happen at this commit.
+// in. Only the index knows whether the previous run failed against the same golden, so
+// without an entry a failing run reads as a regression even when its output is
+// bit-identical to the previous run's (a re-blessed golden produces exactly that); the
+// summary line still says the output is unchanged.
 function workflowState(
     result: WorkflowRegressionResult,
     cell: IndexWorkflowCell | undefined,
     goldenSha: string | null | undefined
 ): DisplayState {
-    const drift: DriftKind | null = cell
-        ? cell.d
-        : result.verdict === 'fail' && result.vs_previous?.identical
-          ? 'inherited'
-          : null
-    return displayVerdict(result.verdict, cell?.sha ?? result.output_sha256, goldenSha, drift)
+    return displayVerdict(result.verdict, cell?.sha ?? result.output_sha256, goldenSha, cell?.d ?? null)
 }
 
 // The worker's overall is pass/fail; soften it the same way the history table does
