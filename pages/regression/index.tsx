@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
 import { FetchError } from '../../components/FetchError'
+import { FirstBadLine } from '../../components/FirstBadLine'
 import { HistoryTable } from '../../components/HistoryTable'
 import { ClearableLabel } from '../../components/Labels/ClearableLabel'
 import { LaneMissingNotice, LaneSelect } from '../../components/LaneSelect'
@@ -13,7 +14,6 @@ import { StaleBanner } from '../../components/StaleBanner'
 import { StatCard } from '../../components/StatsDashboard'
 import { Surface, SectionTitle } from '../../components/Surface'
 import {
-    COMFY_REPO,
     resolveLane,
     useIndexHead,
     useIndexShards,
@@ -30,7 +30,7 @@ import type {
     LatestPointer,
     RegressionSummary,
 } from '../../src/regression/types'
-import { formatRelative, monthKey, shortDate } from '../../utils/time'
+import { formatRelative, monthKey } from '../../utils/time'
 
 const DEFAULT_BRANCH = 'master'
 const PAGE_SIZE = 25
@@ -137,7 +137,6 @@ function FirstBadBanner({
     entries: IndexEntry[]
 }) {
     const subject = entries.find((e) => e.c === fb.commit)?.m?.s
-    const dim = 'text-red-600/80 dark:text-red-400/80'
     return (
         <div
             role="alert"
@@ -145,49 +144,13 @@ function FirstBadBanner({
         >
             <span className="font-mono font-semibold">{wf}</span>
             <span>failing since</span>
-            <Link
-                href={`/regression/${branch}/${fb.commit}?lane=${laneId}`}
-                className="font-mono font-semibold hover:underline"
-            >
-                {fb.commit.slice(0, 7)}
-            </Link>
-            {(fb.pr != null || fb.author) && (
-                <span>
-                    (
-                    {fb.pr != null && (
-                        <a
-                            href={`${COMFY_REPO}/pull/${fb.pr}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline"
-                        >
-                            #{fb.pr}
-                        </a>
-                    )}
-                    {fb.pr != null && fb.author && ', '}
-                    {fb.author})
-                </span>
-            )}
-            {subject && (
-                <span className={`max-w-md truncate ${dim}`} title={subject}>
-                    — {subject}
-                </span>
-            )}
-            <span className={dim}>
-                · {fb.runs} run{fb.runs === 1 ? '' : 's'} · since {shortDate(fb.run_ts)}
-                {fb.golden ? ` · vs golden ${fb.golden}` : ''}
-            </span>
-            {fb.prev_good && (
-                <span className={dim}>
-                    · last good{' '}
-                    <Link
-                        href={`/regression/${branch}/${fb.prev_good}?lane=${laneId}`}
-                        className="font-mono hover:underline"
-                    >
-                        {fb.prev_good.slice(0, 7)}
-                    </Link>
-                </span>
-            )}
+            <FirstBadLine
+                fb={fb}
+                branch={branch}
+                laneId={laneId}
+                subject={subject}
+                dimClass="text-red-600/80 dark:text-red-400/80"
+            />
         </div>
     )
 }

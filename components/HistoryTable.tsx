@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import React from 'react'
-import { BadgeVerdict, RegressionBadge, displayVerdict } from './RegressionBadge'
+import { RegressionBadge, changedHere, displayVerdict, overallDisplay } from './RegressionBadge'
+import type { DisplayState } from './RegressionBadge'
 import { Surface } from './Surface'
 import { COMFY_REPO } from '../src/regression/client'
 import type { IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
@@ -9,22 +10,7 @@ import { formatRelative } from '../utils/time'
 interface CellState {
     wf: string
     cell: IndexWorkflowCell | null
-    verdict: BadgeVerdict | null
-    inherited: boolean
-}
-
-const changedHere = (c: CellState) =>
-    c.verdict === 'execution_error' || (c.verdict === 'fail' && !c.inherited)
-
-// The worker's overall is just pass/fail; borrow the per-workflow drift semantics so
-// rows that merely inherit an older regression do not shout as loudly as its start.
-function overallBadge(entry: IndexEntry, cells: CellState[]): { verdict: BadgeVerdict; inherited: boolean } {
-    if (entry.o === 'pass') return { verdict: 'pass', inherited: false }
-    if (cells.some(changedHere)) return { verdict: 'fail', inherited: false }
-    if (cells.some((c) => c.inherited)) return { verdict: 'fail', inherited: true }
-    if (cells.some((c) => c.verdict === 'accepted')) return { verdict: 'accepted', inherited: false }
-    if (entry.infra) return { verdict: 'infra_error', inherited: false }
-    return { verdict: 'fail', inherited: false }
+    state: DisplayState | null
 }
 
 function HistoryRow({
@@ -42,11 +28,12 @@ function HistoryRow({
 }) {
     const cells: CellState[] = workflows.map((wf) => {
         const cell = entry.w[wf]
-        if (!cell) return { wf, cell: null, verdict: null, inherited: false }
-        return { wf, cell, ...displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d) }
+        if (!cell) return { wf, cell: null, state: null }
+        return { wf, cell, state: displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d) }
     })
-    const overall = overallBadge(entry, cells)
-    const changed = cells.some(changedHere)
+    const states = cells.flatMap((c) => (c.state ? [c.state] : []))
+    const overall = overallDisplay(entry.o, states, entry.infra)
+    const changed = states.some(changedHere)
     const commitHref = `/regression/${branch}/${entry.c}?lane=${laneId}`
 
     return (
@@ -118,9 +105,9 @@ function HistoryRow({
             </td>
             {cells.map((c) => (
                 <td key={c.wf} className="px-5 py-3 align-top">
-                    {c.cell && c.verdict ? (
+                    {c.cell && c.state ? (
                         <div className="flex flex-col items-start gap-1">
-                            <RegressionBadge verdict={c.verdict} inherited={c.inherited} />
+                            <RegressionBadge verdict={c.state.verdict} inherited={c.state.inherited} />
                             {c.cell.exec != null && (
                                 <span className="font-mono text-[11px] tabular-nums text-ash-500 dark:text-smoke-800">
                                     {c.cell.exec.toFixed(1)}s
