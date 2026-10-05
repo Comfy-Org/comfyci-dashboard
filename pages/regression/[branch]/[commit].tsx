@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import React from 'react'
 import { FiExternalLink } from 'react-icons/fi'
 import { CommitMetaChip } from '../../../components/CommitMetaChip'
+import { FetchError } from '../../../components/FetchError'
 import { LaneTabs } from '../../../components/LaneSelect'
 import { MetricTable } from '../../../components/MetricTable'
 import { RegressionBadge, displayVerdict } from '../../../components/RegressionBadge'
@@ -340,16 +341,50 @@ export default function RegressionCommitPage() {
     const laneParam = typeof router.query.lane === 'string' ? router.query.lane : undefined
     const lanesQuery = useLanes()
     const lane = resolveLane(lanesQuery.data, laneParam)
-    // Wait for lanes.json so the summary is fetched from the right lane tree the first time.
-    const ready = router.isReady && !lanesQuery.isPending
+    // Wait for lanes.json so the summary is fetched from the right lane tree the first time;
+    // when that fetch fails the failure is reported rather than a lane tree guessed.
+    const ready = router.isReady && !lanesQuery.isPending && !lanesQuery.isError
     const summaryQuery = useRegressionSummary(ready ? branch : undefined, commit, lane)
     const summary = summaryQuery.data
-    const { data: head } = useIndexHead(ready ? branch : undefined, lane.id)
+    const headQuery = useIndexHead(ready ? branch : undefined, lane.id)
+    const head = headQuery.data
 
-    if (!branch || !commit || !ready || summaryQuery.isPending) {
+    if (
+        !branch ||
+        !commit ||
+        !router.isReady ||
+        lanesQuery.isPending ||
+        (ready && summaryQuery.isPending)
+    ) {
         return (
             <div className="flex justify-center items-center py-24">
                 <Spinner size="xl" />
+            </div>
+        )
+    }
+
+    // A failed fetch is not "no data": say so and offer a retry.
+    if (lanesQuery.isError) {
+        return (
+            <div className="pt-8">
+                <FetchError
+                    what="the lane index"
+                    error={lanesQuery.error}
+                    busy={lanesQuery.isFetching}
+                    onRetry={() => lanesQuery.refetch()}
+                />
+            </div>
+        )
+    }
+    if (summaryQuery.isError) {
+        return (
+            <div className="pt-8">
+                <FetchError
+                    what="the run summary"
+                    error={summaryQuery.error}
+                    busy={summaryQuery.isFetching}
+                    onRetry={() => summaryQuery.refetch()}
+                />
             </div>
         )
     }
@@ -432,6 +467,14 @@ export default function RegressionCommitPage() {
                 </div>
             </div>
 
+            {headQuery.isError && (
+                <FetchError
+                    what="the run index"
+                    error={headQuery.error}
+                    busy={headQuery.isFetching}
+                    onRetry={() => headQuery.refetch()}
+                />
+            )}
             <RegressionSummaryHeader
                 branch={branch}
                 commit={commit}
