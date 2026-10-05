@@ -2,14 +2,18 @@ import React from 'react'
 import type { LaneInfo } from '../src/regression/types'
 import { formatRelative, hoursSince } from '../utils/time'
 
-// How old the latest run may be before the lane looks stalled. Per-commit lanes
-// should see a run within a few hours of a push; slower cadences get their period
-// plus some slack.
+// How old the latest run may be before the lane looks stale. A day without a push is
+// an ordinary night or weekend for a per-commit lane, so the threshold is a day;
+// slower cadences get their period plus slack. Only beyond twice the threshold is
+// the worker itself suspect.
 const STALE_HOURS: Record<LaneInfo['cadence'], number> = {
-    'per-commit': 3,
-    nightly: 26,
-    weekly: 24 * 7 + 2,
+    'per-commit': 24,
+    nightly: 36,
+    weekly: 24 * 8,
 }
+
+const formatHours = (hours: number) =>
+    hours >= 48 ? `${Math.round(hours / 24)} d` : `${hours} h`
 
 /**
  * Freshness strip for a lane: the latest run's age, amber once it is older than the
@@ -19,10 +23,15 @@ export const StaleBanner: React.FC<{
     latestTs: number | null | undefined
     indexMissing: boolean
     cadence?: LaneInfo['cadence']
-}> = ({ latestTs, indexMissing, cadence = 'per-commit' }) => {
+    /** Set when lanes.json lists the lane but not this branch: the lane never ran on it. */
+    unlistedBranch?: string
+}> = ({ latestTs, indexMissing, cadence = 'per-commit', unlistedBranch }) => {
     const staleAfter = STALE_HOURS[cadence] ?? STALE_HOURS['per-commit']
-    const stale = latestTs != null && hoursSince(latestTs) > staleAfter
+    const age = latestTs != null ? hoursSince(latestTs) : 0
+    const stale = latestTs != null && age > staleAfter
     const warn = stale || indexMissing
+    // A published latest run outranks a lanes.json that does not list the branch yet.
+    const noRunsOnBranch = latestTs == null && !!unlistedBranch
     return (
         <div
             role={warn ? 'alert' : 'status'}
@@ -41,15 +50,20 @@ export const StaleBanner: React.FC<{
                         · {new Date(latestTs * 1000).toLocaleString()}
                     </span>
                 </span>
+            ) : noRunsOnBranch ? (
+                <span className="font-semibold">
+                    This lane has no runs on <span className="font-mono">{unlistedBranch}</span>
+                </span>
             ) : (
                 <span className="font-semibold">No runs recorded for this lane yet</span>
             )}
             {stale && (
                 <span>
-                    — older than {staleAfter} h for a {cadence} lane; the worker may be stalled
+                    — no run in the last {formatHours(staleAfter)} on this {cadence} lane
+                    {age > 2 * staleAfter && '; the worker may be stalled'}
                 </span>
             )}
-            {indexMissing && (
+            {indexMissing && !noRunsOnBranch && (
                 <span className="font-semibold">
                     No run index published yet
                     {latestTs != null && (

@@ -360,9 +360,16 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
                 />
             )
         }
+        // lanes.json names each lane's branches: one it leaves out has no runs on this lane.
+        const unlistedBranch = lane.info && !lane.info.branches?.[branch] ? branch : undefined
         return (
             <>
-                <StaleBanner latestTs={latest?.run_ts ?? null} indexMissing cadence={lane.info?.cadence} />
+                <StaleBanner
+                    latestTs={latest?.run_ts ?? null}
+                    indexMissing
+                    cadence={lane.info?.cadence}
+                    unlistedBranch={unlistedBranch}
+                />
                 {summaryQuery.isError && (
                     <FetchError
                         what="the latest run summary"
