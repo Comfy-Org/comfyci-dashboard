@@ -4,7 +4,7 @@ import { useRouter } from 'next/router'
 import React from 'react'
 import { HistoryTable } from '../../components/HistoryTable'
 import { ClearableLabel } from '../../components/Labels/ClearableLabel'
-import { LaneSelect } from '../../components/LaneSelect'
+import { LaneMissingNotice, LaneSelect } from '../../components/LaneSelect'
 import { Pager } from '../../components/Pager'
 import { RegressionBadge, displayVerdict } from '../../components/RegressionBadge'
 import { Sparkline } from '../../components/Sparkline'
@@ -478,7 +478,12 @@ export default function RegressionIndexPage() {
             </Surface>
 
             {ready ? (
-                <LaneHistory key={`${branch}:${lane.id}`} branch={branch} lane={lane} />
+                <>
+                    {lane.missing && (
+                        <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
+                    )}
+                    <LaneHistory key={`${branch}:${lane.id}`} branch={branch} lane={lane} />
+                </>
             ) : (
                 <div className="flex justify-center items-center py-24">
                     <Spinner size="xl" />

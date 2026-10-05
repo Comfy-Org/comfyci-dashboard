@@ -40,3 +40,17 @@ export const LaneSelect: React.FC<{
         </div>
     )
 }
+
+/** One line when ?lane= names a lane that is not published and another lane is shown instead. */
+export const LaneMissingNotice: React.FC<{ missing: string; showing: string }> = ({
+    missing,
+    showing,
+}) => (
+    <p
+        role="status"
+        className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400"
+    >
+        Lane <span className="font-mono font-semibold">{missing}</span> is not published; showing{' '}
+        {showing}.
+    </p>
+)

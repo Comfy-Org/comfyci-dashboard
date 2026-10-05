@@ -55,18 +55,29 @@ const pathBranch = (branch: string | undefined, lane?: LaneRef | null) =>
 const runDir = (branch: string | undefined, commit: string | undefined, lane?: LaneRef | null) =>
     `${laneBase(lane)}/runs/${pathBranch(branch, lane)}/${commit}`
 
-/** Pick the lane to show: ?lane= when listed, else the primary, else the first listed, else legacy. */
+/**
+ * Pick the lane to show: ?lane= when listed, else the primary, else the first listed,
+ * else legacy. A requested id that names no published lane is handed back as `missing`
+ * so the page can say which lane it shows instead of silently substituting one.
+ */
 export function resolveLane(
     lanes: LanesIndex | null | undefined,
     requested?: string
-): LaneRef & { info?: LaneInfo } {
+): LaneRef & { info?: LaneInfo; missing?: string } {
     if (lanes) {
         const id =
             (requested && lanes.lanes[requested] ? requested : undefined) ??
             (lanes.lanes[lanes.primary] ? lanes.primary : Object.keys(lanes.lanes)[0])
-        if (id) return { id, layout: lanes.lanes[id].layout, info: lanes.lanes[id] }
+        if (id) {
+            return {
+                id,
+                layout: lanes.lanes[id].layout,
+                info: lanes.lanes[id],
+                missing: requested && requested !== id ? requested : undefined,
+            }
+        }
     }
-    return { ...LEGACY_LANE, id: requested || LEGACY_LANE_ID }
+    return { ...LEGACY_LANE, missing: requested && requested !== LEGACY_LANE_ID ? requested : undefined }
 }
 
 // ── Hooks ──
