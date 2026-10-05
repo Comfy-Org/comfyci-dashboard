@@ -39,6 +39,7 @@ function metricClauses(m: ComparisonMetrics, t: Thresholds | null): { text: stri
     return out
 }
 
+// One line for a workflow that drifted or did not execute, plus where its chain started.
 function FailingWorkflow({
     branch,
     lane,
@@ -85,39 +86,46 @@ function FailingWorkflow({
                 </span>
                 <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
             </div>
-            <p className="text-sm text-charcoal-800 dark:text-smoke-200">
-                vs golden {shownTag ?? '—'}
-                {golden && sameGolden && (
-                    <span className="text-ash-500 dark:text-smoke-800"> ({blessedClause(golden)})</span>
-                )}
-                :{' '}
-                {vg?.error ? (
-                    <span className="text-red-400">{vg.error}</span>
-                ) : clauses.length ? (
-                    clauses.map((c, i) => (
-                        <span key={c.text}>
-                            {i > 0 && ', '}
-                            <span className={c.bad ? 'font-semibold text-red-400' : ''}>{c.text}</span>
+            {result.verdict === 'execution_error' ? (
+                <p className="text-sm text-charcoal-800 dark:text-smoke-200">
+                    Worker status: <span className="font-mono">{result.worker_status}</span>
+                    {result.error && <span className="text-red-400"> — {result.error}</span>}
+                </p>
+            ) : (
+                <p className="text-sm text-charcoal-800 dark:text-smoke-200">
+                    vs golden {shownTag ?? '—'}
+                    {golden && sameGolden && (
+                        <span className="text-ash-500 dark:text-smoke-800"> ({blessedClause(golden)})</span>
+                    )}
+                    :{' '}
+                    {vg?.error ? (
+                        <span className="text-red-400">{vg.error}</span>
+                    ) : clauses.length ? (
+                        clauses.map((c, i) => (
+                            <span key={c.text}>
+                                {i > 0 && ', '}
+                                <span className={c.bad ? 'font-semibold text-red-400' : ''}>{c.text}</span>
+                            </span>
+                        ))
+                    ) : (
+                        'no comparison'
+                    )}
+                    {vp && !vp.error && result.previous_commit && (
+                        <>
+                            ; outputs {vp.identical ? 'unchanged' : 'changed'} vs previous run{' '}
+                            <Link href={href(result.previous_commit)} className={`font-mono ${extLink}`}>
+                                {result.previous_commit.slice(0, 7)}
+                            </Link>
+                            {!vp.identical && vp.mean_mse != null && ` (MSE ${vp.mean_mse.toFixed(2)})`}
+                        </>
+                    )}
+                    {golden && !sameGolden && (
+                        <span className="text-ash-500 dark:text-smoke-800">
+                            ; the current golden is {golden.tag} ({blessedClause(golden)})
                         </span>
-                    ))
-                ) : (
-                    'no comparison'
-                )}
-                {vp && !vp.error && result.previous_commit && (
-                    <>
-                        ; outputs {vp.identical ? 'unchanged' : 'changed'} vs previous run{' '}
-                        <Link href={href(result.previous_commit)} className={`font-mono ${extLink}`}>
-                            {result.previous_commit.slice(0, 7)}
-                        </Link>
-                        {!vp.identical && vp.mean_mse != null && ` (MSE ${vp.mean_mse.toFixed(2)})`}
-                    </>
-                )}
-                {golden && !sameGolden && (
-                    <span className="text-ash-500 dark:text-smoke-800">
-                        ; the current golden is {golden.tag} ({blessedClause(golden)})
-                    </span>
-                )}
-            </p>
+                    )}
+                </p>
+            )}
             {firstBad && (
                 <p className="text-sm text-ash-500 dark:text-smoke-800">
                     Failing since{' '}
@@ -163,7 +171,7 @@ function FailingWorkflow({
     )
 }
 
-/** Verdict counts plus one explanatory line per failing workflow, above the cards. */
+/** Verdict counts plus one explanatory line per failing or errored workflow, above the cards. */
 export const RegressionSummaryHeader: React.FC<{
     branch: string
     commit: string
@@ -178,8 +186,10 @@ export const RegressionSummaryHeader: React.FC<{
     const count = (pred: (r: WorkflowRegressionResult) => boolean) => results.filter(pred).length
     const pass = count((r) => r.verdict === 'pass')
     const fail = count((r) => r.verdict === 'fail')
+    const errored = count((r) => r.verdict === 'execution_error')
     const accepted = count((r) => states[r.workflow_id]?.verdict === 'accepted')
-    const failing = results.filter((r) => r.verdict === 'fail')
+    // Execution errors are the most actionable non-drift failure, so they get a line too.
+    const explained = results.filter((r) => r.verdict === 'fail' || r.verdict === 'execution_error')
     const subjectOf = (fb: FirstBad) =>
         head?.entries.find((e) => e.c === fb.commit)?.m?.s ??
         (fb.commit === commit ? summary.commit_meta?.subject : undefined)
@@ -191,7 +201,13 @@ export const RegressionSummaryHeader: React.FC<{
                 <span className="text-sm text-charcoal-800 dark:text-smoke-200">
                     <span className="font-semibold text-emerald-500">{pass}</span> pass ·{' '}
                     <span className={`font-semibold ${fail ? 'text-red-400' : ''}`}>{fail}</span> fail ·{' '}
-                    <span className="font-semibold">{results.length - pass - fail}</span> other
+                    {errored > 0 && (
+                        <>
+                            <span className="font-semibold text-red-400">{errored}</span> execution{' '}
+                            {errored === 1 ? 'error' : 'errors'} ·{' '}
+                        </>
+                    )}
+                    <span className="font-semibold">{results.length - pass - fail - errored}</span> other
                     {accepted > 0 && (
                         <span className="text-ash-500 dark:text-smoke-800">
                             {' '}
@@ -200,9 +216,9 @@ export const RegressionSummaryHeader: React.FC<{
                     )}
                 </span>
             </div>
-            {failing.length > 0 && (
+            {explained.length > 0 && (
                 <div className="mt-3 flex flex-col gap-3">
-                    {failing.map((r) => {
+                    {explained.map((r) => {
                         const fb = head?.first_bad?.[r.workflow_id]
                         return (
                             <FailingWorkflow
