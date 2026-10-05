@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import React from 'react'
+import { FirstBadLine } from './FirstBadLine'
 import { RegressionBadge } from './RegressionBadge'
 import type { DisplayState } from './RegressionBadge'
 import { Surface, SectionTitle } from './Surface'
-import { COMFY_REPO, useGoldenCurrent } from '../src/regression/client'
+import { useGoldenCurrent } from '../src/regression/client'
 import type { LaneRef } from '../src/regression/client'
 import type {
     ComparisonMetrics,
@@ -66,17 +67,6 @@ function FailingWorkflow({
     const sameGolden = golden != null && golden.tag === shownTag
     const blessedClause = (g: GoldenCurrent) =>
         `blessed ${shortDate(g.blessed_ts)} by ${g.blessed_by}${g.reason ? `, ${g.reason}` : ''}`
-    const origin = firstBad
-        ? [
-              firstBadSubject,
-              firstBad.pr != null ? (
-                  <a key="pr" href={`${COMFY_REPO}/pull/${firstBad.pr}`} target="_blank" rel="noopener noreferrer" className={extLink}>
-                      #{firstBad.pr}
-                  </a>
-              ) : null,
-              firstBad.author ? `by ${firstBad.author}` : null,
-          ].filter((x) => x != null && x !== '')
-        : []
 
     return (
         <div className="flex flex-col gap-1 border-t border-smoke-200 dark:border-charcoal-400/40 pt-3">
@@ -127,44 +117,14 @@ function FailingWorkflow({
                 </p>
             )}
             {firstBad && (
-                <p className="text-sm text-ash-500 dark:text-smoke-800">
-                    Failing since{' '}
-                    <Link
-                        href={href(firstBad.commit)}
-                        className="font-mono font-semibold text-charcoal-800 dark:text-smoke-200 hover:underline"
-                    >
-                        {firstBad.commit.slice(0, 7)}
-                    </Link>
-                    {origin.length > 0 && (
-                        <>
-                            {' ('}
-                            {origin.map((part, i) => (
-                                <React.Fragment key={i}>
-                                    {i > 0 && ', '}
-                                    {part}
-                                </React.Fragment>
-                            ))}
-                            )
-                        </>
-                    )}{' '}
-                    — {firstBad.runs} tested run{firstBad.runs === 1 ? '' : 's'} ·{' '}
-                    <a
-                        href={`${COMFY_REPO}/commit/${firstBad.commit}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={extLink}
-                    >
-                        GitHub
-                    </a>
-                    {firstBad.prev_good && (
-                        <>
-                            {' '}
-                            · last good{' '}
-                            <Link href={href(firstBad.prev_good)} className={`font-mono ${extLink}`}>
-                                {firstBad.prev_good.slice(0, 7)}
-                            </Link>
-                        </>
-                    )}
+                <p className="text-sm text-charcoal-800 dark:text-smoke-200">
+                    <span className="text-ash-500 dark:text-smoke-800">Failing since</span>{' '}
+                    <FirstBadLine
+                        fb={firstBad}
+                        branch={branch}
+                        laneId={lane.id}
+                        subject={firstBadSubject}
+                    />
                 </p>
             )}
         </div>

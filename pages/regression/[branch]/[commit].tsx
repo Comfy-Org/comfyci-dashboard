@@ -8,7 +8,7 @@ import { CommitMetaChip } from '../../../components/CommitMetaChip'
 import { FetchError } from '../../../components/FetchError'
 import { LaneTabs } from '../../../components/LaneSelect'
 import { MetricTable } from '../../../components/MetricTable'
-import { RegressionBadge, displayVerdict } from '../../../components/RegressionBadge'
+import { RegressionBadge, displayVerdict, overallDisplay } from '../../../components/RegressionBadge'
 import type { DisplayState } from '../../../components/RegressionBadge'
 import { ReblessCallout } from '../../../components/ReblessCallout'
 import { RegressionSummaryHeader } from '../../../components/RegressionSummaryHeader'
@@ -28,7 +28,6 @@ import type { LaneRef } from '../../../src/regression/client'
 import type {
     CommitMeta,
     IndexWorkflowCell,
-    RegressionSummary,
     RunEnv,
     WorkflowRegressionResult,
 } from '../../../src/regression/types'
@@ -90,18 +89,6 @@ function workflowState(
     goldenSha: string | null | undefined
 ): DisplayState {
     return displayVerdict(result.verdict, cell?.sha ?? result.output_sha256, goldenSha, cell?.d ?? null)
-}
-
-// The worker's overall is pass/fail; soften it the same way the history table does
-// when every failure is inherited or accepted.
-function overallState(summary: RegressionSummary, states: Record<string, DisplayState>): DisplayState {
-    if (summary.overall === 'pass') return { verdict: 'pass', inherited: false }
-    const all = Object.values(states)
-    const failing = all.filter((s) => s.verdict === 'fail')
-    if (failing.length === 0 && all.some((s) => s.verdict === 'accepted')) {
-        return { verdict: 'accepted', inherited: false }
-    }
-    return { verdict: 'fail', inherited: failing.length > 0 && failing.every((s) => s.inherited) }
 }
 
 function WorkflowCard({
@@ -424,7 +411,10 @@ export default function RegressionCommitPage() {
             goldens?.[wf.workflow_id]?.sha
         )
     }
-    const overall = overallState(summary, states)
+    // Same rule as the history table's Overall column; older summaries lack has_infra_error.
+    const infra =
+        summary.has_infra_error ?? workflows.some((wf) => wf.verdict === 'infra_error')
+    const overall = overallDisplay(summary.overall, Object.values(states), infra)
     const meta: CommitMeta | null =
         summary.commit_meta ??
         (entry?.m
