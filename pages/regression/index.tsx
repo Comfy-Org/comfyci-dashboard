@@ -2,6 +2,7 @@ import { Spinner } from 'flowbite-react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
+import { FetchError } from '../../components/FetchError'
 import { HistoryTable } from '../../components/HistoryTable'
 import { ClearableLabel } from '../../components/Labels/ClearableLabel'
 import { LaneMissingNotice, LaneSelect } from '../../components/LaneSelect'
@@ -302,7 +303,9 @@ function Trends({ entries, workflows }: { entries: IndexEntry[]; workflows: stri
 function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?: LaneInfo } }) {
     const headQuery = useIndexHead(branch, lane.id)
     const head = headQuery.data
-    const headMissing = !headQuery.isPending && head == null
+    // Only a null result (the file is not published) means the index is absent; a failed
+    // fetch is reported as such below, never read as "nothing published".
+    const headMissing = headQuery.isSuccess && head == null
     // Pre-index fallback, only consulted once the index is known to be absent.
     const latestQuery = useLatestPointer(headMissing ? branch : undefined, lane)
     const latest = latestQuery.data
@@ -312,6 +315,7 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
     const [olderMonths, setOlderMonths] = React.useState<string[]>([])
     const shardQueries = useIndexShards(branch, lane.id, olderMonths)
     const loadingOlder = shardQueries.some((q) => q.isPending)
+    const failedShard = shardQueries.find((q) => q.isError)
 
     const entries = mergeEntries(
         head?.entries ?? [],
@@ -334,10 +338,39 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
         )
     }
 
+    if (headQuery.isError) {
+        return (
+            <FetchError
+                what="the run index"
+                error={headQuery.error}
+                busy={headQuery.isFetching}
+                onRetry={() => headQuery.refetch()}
+            />
+        )
+    }
+
     if (!head) {
+        if (latestQuery.isError) {
+            return (
+                <FetchError
+                    what="the latest run pointer"
+                    error={latestQuery.error}
+                    busy={latestQuery.isFetching}
+                    onRetry={() => latestQuery.refetch()}
+                />
+            )
+        }
         return (
             <>
                 <StaleBanner latestTs={latest?.run_ts ?? null} indexMissing cadence={lane.info?.cadence} />
+                {summaryQuery.isError && (
+                    <FetchError
+                        what="the latest run summary"
+                        error={summaryQuery.error}
+                        busy={summaryQuery.isFetching}
+                        onRetry={() => summaryQuery.refetch()}
+                    />
+                )}
                 {latest ? (
                     <LatestRunCard
                         branch={branch}
@@ -383,6 +416,15 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
                         workflows={workflows}
                         goldens={goldens}
                     />
+                    {failedShard && (
+                        <FetchError
+                            className="mt-6"
+                            what="older runs"
+                            error={failedShard.error}
+                            busy={failedShard.isFetching}
+                            onRetry={() => failedShard.refetch()}
+                        />
+                    )}
                     <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
                         <Pager currentPage={page} totalPages={totalPages} onPageChange={setPage} />
                         {next && (
@@ -477,17 +519,24 @@ export default function RegressionIndexPage() {
                 </div>
             </Surface>
 
-            {ready ? (
+            {!ready ? (
+                <div className="flex justify-center items-center py-24">
+                    <Spinner size="xl" />
+                </div>
+            ) : lanesQuery.isError ? (
+                <FetchError
+                    what="the lane index"
+                    error={lanesQuery.error}
+                    busy={lanesQuery.isFetching}
+                    onRetry={() => lanesQuery.refetch()}
+                />
+            ) : (
                 <>
                     {lane.missing && (
                         <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
                     )}
                     <LaneHistory key={`${branch}:${lane.id}`} branch={branch} lane={lane} />
                 </>
-            ) : (
-                <div className="flex justify-center items-center py-24">
-                    <Spinner size="xl" />
-                </div>
             )}
         </div>
     )
