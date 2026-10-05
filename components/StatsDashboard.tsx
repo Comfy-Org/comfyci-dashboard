@@ -114,7 +114,7 @@ export const StatsDashboard: React.FC<{ results: ActionJobResult[] }> = ({
                 <StatCard
                     label="Workflow Runs"
                     value={stats.total}
-                    sub="page of 30 runs"
+                    sub="on this page"
                     dotClass="bg-sapphire-700 dark:bg-electric"
                     valueClass="text-sapphire-700 dark:text-electric"
                 />
@@ -217,7 +217,7 @@ export const StatsDashboard: React.FC<{ results: ActionJobResult[] }> = ({
                     <div className="mt-3 flex flex-col gap-3">
                         {stats.osBreakdown.length === 0 && (
                             <div className="text-sm text-ash-500 dark:text-smoke-800">
-                                No data in current view.
+                                No data on this page.
                             </div>
                         )}
                         {stats.osBreakdown.map((os, i) => (
