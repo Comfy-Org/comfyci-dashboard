@@ -93,7 +93,7 @@ function GitCommitsList() {
                 </a>
             </div>
 
-            <LegacyBanner resultTimes={(filteredJobResults?.commitSummaries ?? []).map((c) => c.timestamp)} />
+            <LegacyBanner />
 
             {/* Filters */}
             <Surface className="mb-6 p-4">

@@ -140,7 +140,7 @@ function GitCommitsList() {
                 </a>
             </div>
 
-            <LegacyBanner resultTimes={jobResults.map((r) => r.end_time ?? r.start_time ?? r.commit_time)} />
+            <LegacyBanner />
 
             {/* Dashboard */}
             <StatsDashboard results={jobResults} />
