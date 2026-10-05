@@ -8,6 +8,7 @@ import type { LaneRef } from '../src/regression/client'
 import type {
     ComparisonMetrics,
     FirstBad,
+    GoldenCurrent,
     IndexHead,
     RegressionSummary,
     Thresholds,
@@ -58,6 +59,12 @@ function FailingWorkflow({
     const vg = result.vs_golden
     const vp = result.vs_previous
     const clauses = vg && !vg.error ? metricClauses(vg, result.thresholds_used) : []
+    // current.json describes the golden blessed now, which after a re-bless is not the one
+    // this run was compared against: its details only attach to a matching tag.
+    const shownTag = result.golden_tag ?? golden?.tag
+    const sameGolden = golden != null && golden.tag === shownTag
+    const blessedClause = (g: GoldenCurrent) =>
+        `blessed ${shortDate(g.blessed_ts)} by ${g.blessed_by}${g.reason ? `, ${g.reason}` : ''}`
     const origin = firstBad
         ? [
               firstBadSubject,
@@ -79,13 +86,9 @@ function FailingWorkflow({
                 <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
             </div>
             <p className="text-sm text-charcoal-800 dark:text-smoke-200">
-                vs golden {result.golden_tag ?? golden?.tag ?? '—'}
-                {golden && (
-                    <span className="text-ash-500 dark:text-smoke-800">
-                        {' '}
-                        (blessed {shortDate(golden.blessed_ts)} by {golden.blessed_by}
-                        {golden.reason ? `, ${golden.reason}` : ''})
-                    </span>
+                vs golden {shownTag ?? '—'}
+                {golden && sameGolden && (
+                    <span className="text-ash-500 dark:text-smoke-800"> ({blessedClause(golden)})</span>
                 )}
                 :{' '}
                 {vg?.error ? (
@@ -108,6 +111,11 @@ function FailingWorkflow({
                         </Link>
                         {!vp.identical && vp.mean_mse != null && ` (MSE ${vp.mean_mse.toFixed(2)})`}
                     </>
+                )}
+                {golden && !sameGolden && (
+                    <span className="text-ash-500 dark:text-smoke-800">
+                        ; the current golden is {golden.tag} ({blessedClause(golden)})
+                    </span>
                 )}
             </p>
             {firstBad && (
