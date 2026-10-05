@@ -35,6 +35,12 @@ function HistoryRow({
     const overall = overallDisplay(entry.o, states, entry.infra)
     const changed = states.some(changedHere)
     const commitHref = `/regression/${branch}/${entry.c}?lane=${laneId}`
+    // Built here rather than taken from the index's range.url: the page should not
+    // navigate to whatever string the published JSON carries.
+    const compareHref =
+        entry.prev && entry.range && entry.range.n != null && entry.range.n > 1
+            ? `${COMFY_REPO}/compare/${entry.prev}...${entry.c}`
+            : null
 
     return (
         <tr
@@ -50,9 +56,9 @@ function HistoryRow({
                     >
                         {entry.c.slice(0, 7)}
                     </Link>
-                    {entry.range && entry.range.n != null && entry.range.n > 1 && (
+                    {compareHref && entry.range && (
                         <a
-                            href={entry.range.url}
+                            href={compareHref}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Commits between the previous tested commit and this one"
