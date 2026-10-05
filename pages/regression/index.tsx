@@ -206,13 +206,13 @@ function LaneKpis({
     const passed = scored.filter((e) => e.o === 'pass').length
     const infra = window.length - scored.length
     const latest = entries[0]
+    // Open: still drifting in the latest run (inherited or not), or unable to execute at all.
     const open = latest
-        ? workflows.filter((wf) => {
+        ? workflows.flatMap((wf) => {
               const cell = latest.w[wf]
-              return (
-                  !!cell &&
-                  displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d).verdict === 'fail'
-              )
+              if (!cell) return []
+              const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+              return verdict === 'fail' || verdict === 'execution_error' ? [{ wf, verdict }] : []
           })
         : []
     const primaryWf = workflows[0]
@@ -234,7 +234,13 @@ function LaneKpis({
             <StatCard
                 label="Open Regressions"
                 value={open.length}
-                sub={open.length ? open.join(', ') : 'latest run is clean'}
+                sub={
+                    open.length
+                        ? open
+                              .map((o) => (o.verdict === 'execution_error' ? `${o.wf} (execution error)` : o.wf))
+                              .join(', ')
+                        : 'no drift in the latest run'
+                }
                 dotClass="bg-red-600 dark:bg-red-400"
                 valueClass={
                     open.length ? 'text-red-600 dark:text-red-400' : 'text-charcoal-400 dark:text-smoke-500'
