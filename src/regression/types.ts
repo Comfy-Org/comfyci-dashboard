@@ -126,7 +126,7 @@ export interface RunEnv {
     runtime_backends?: string[] | Record<string, string | number | boolean> | string | null
 }
 
-// ── Golden baseline metadata: golden/<wf>/current.json and golden/<wf>/<tag>/blessed.json ──
+// ── Golden baseline metadata: golden/<wf>/current.json ──
 
 export interface GoldenCurrent {
     tag: string
@@ -136,22 +136,6 @@ export interface GoldenCurrent {
     supersedes?: string
     source?: string
     output_sha256?: string
-}
-
-export interface BlessedInfo {
-    tag: string
-    commit: string
-    gpu_name: string
-    torch_version: string
-    generated_by: string
-    generated_ts: number
-    python_version?: string
-    cuda?: string
-    driver_version?: string
-    lane?: string
-    image_sha?: string
-    reason?: string
-    previous_tag?: string
 }
 
 // ── Published run index: index/lanes.json, index/<branch>/<lane>.json and monthly shards ──

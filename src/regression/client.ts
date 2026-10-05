@@ -90,12 +90,6 @@ const shardQuery = (branch: string, lane: string, month: string) => {
     return { queryKey: ['regression-index-shard', url], queryFn: () => fetchJsonOrNull<IndexShard>(url) }
 }
 
-export const useIndexShard = (branch?: string, lane?: string, month?: string) =>
-    useQuery({
-        ...shardQuery(branch ?? '', lane ?? '', month ?? ''),
-        enabled: !!branch && !!lane && !!month,
-    })
-
 /** Several monthly shards at once; the History page appends a month per "Load older". */
 export const useIndexShards = (branch: string, lane: string, months: string[]) =>
     useQueries({ queries: months.map((m) => shardQuery(branch, lane, m)) })
