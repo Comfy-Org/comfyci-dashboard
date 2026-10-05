@@ -41,10 +41,11 @@ function GitCommitsList() {
     const prevFilters = React.useRef({ filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage });
 
     const { data: filteredJobResults, isLoading, isError } = useGetGitcommit({
-        operatingSystem: filterOS == 'Select OS' ? undefined : filterOS,
+        // The blank <option> and its placeholder label both mean "no filter".
+        operatingSystem: filterOS === '' || filterOS === 'Select OS' ? undefined : filterOS,
         commitId: commitId == '' ? undefined : commitId,
         workflowName: workflowNameFilter == '' ? undefined : workflowNameFilter,
-        branch: branchFilter == 'Select Branch' ? undefined : branchFilter,
+        branch: branchFilter === '' || branchFilter === 'Select Branch' ? undefined : branchFilter,
         page: currentPage,
         repoName: repoFilter,
         pageSize: 30,
@@ -102,8 +103,8 @@ function GitCommitsList() {
         ? jobResults.filter((r) => r.status === statusFilter)
         : jobResults
     const hasActiveFilters =
-        filterOS !== 'Select OS' ||
-        branchFilter !== 'Select Branch' ||
+        (filterOS !== '' && filterOS !== 'Select OS') ||
+        (branchFilter !== '' && branchFilter !== 'Select Branch') ||
         commitId !== '' ||
         workflowNameFilter !== '' ||
         statusFilter !== ''

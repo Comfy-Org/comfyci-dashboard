@@ -23,9 +23,10 @@ function GitCommitsList() {
     const router = useRouter();
     const [repoFilter, setRepoFilter] = React.useState<string>(DEFAULT_REPO)
     const [branchFilter, setBranchFilter] = React.useState<string>('master')
+    // The blank <option> and its placeholder label both mean "all branches".
+    const branchName = branchFilter === '' || branchFilter === 'Select Branch' ? undefined : branchFilter
     const { data: filteredJobResults, isLoading, isError } = useGetGitcommitsummary({
-        // The blank <option> and its placeholder label both mean "all branches".
-        branchName: branchFilter === '' || branchFilter === 'Select Branch' ? undefined : branchFilter,
+        branchName,
         page: currentPage,
         repoName: repoFilter,
         pageSize: 10,
@@ -171,7 +172,7 @@ function GitCommitsList() {
                                 </thead>
                                 <tbody className="divide-y divide-smoke-200 dark:divide-charcoal-400/40">
                                     {groupedResults.map(
-                                        ({ osStatus, gitRepo, commitMessage, commitTime, commitHash }, index) => (
+                                        ({ osStatus, gitRepo, commitMessage, commitTime, commitHash, branch }, index) => (
                                             <tr
                                                 key={index}
                                                 className="group transition-colors hover:bg-smoke-200/60 dark:hover:bg-charcoal-700/40"
@@ -199,10 +200,13 @@ function GitCommitsList() {
                                                         {osStatus.map(({ os, status }) =>
                                                             <WorkflowStatusButton key={os} text={os} status={status}
                                                                 onClick={() => {
-                                                                    // Drill into All Results for this repo, branch and platform.
+                                                                    // Drill into All Results for this repo and platform on the row's branch (or the
+                                                                    // branch filter). Omit the key when neither is set: Next serialises an undefined
+                                                                    // query value as an empty branch= param.
+                                                                    const drillBranch = branch || branchName
                                                                     router.push({
                                                                         pathname: '/',
-                                                                        query: { repo: gitRepo, branch: branchFilter, os },
+                                                                        query: { repo: gitRepo, ...(drillBranch ? { branch: drillBranch } : {}), os },
                                                                     });
                                                                 }}
                                                             />
