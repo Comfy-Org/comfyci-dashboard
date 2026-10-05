@@ -6,7 +6,7 @@ import React from 'react'
 import { FiExternalLink } from 'react-icons/fi'
 import { CommitMetaChip } from '../../../components/CommitMetaChip'
 import { FetchError } from '../../../components/FetchError'
-import { LaneTabs } from '../../../components/LaneSelect'
+import { LaneMissingNotice, LaneTabs } from '../../../components/LaneSelect'
 import { MetricTable } from '../../../components/MetricTable'
 import { RegressionBadge, displayVerdict, overallDisplay } from '../../../components/RegressionBadge'
 import type { DisplayState } from '../../../components/RegressionBadge'
@@ -457,6 +457,9 @@ export default function RegressionCommitPage() {
                 </div>
             </div>
 
+            {lane.missing && (
+                <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
+            )}
             {headQuery.isError && (
                 <FetchError
                     what="the run index"
