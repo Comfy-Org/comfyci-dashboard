@@ -364,9 +364,12 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
     const firstBad = Object.entries(head.first_bad ?? {})
         .sort(([a], [b]) => a.localeCompare(b))
         .filter(([wf]) => {
-            // A re-blessed golden closes the chain even before the next run reports a pass.
+            // A passing or re-blessed latest run closes the chain even before the worker
+            // prunes it from first_bad; any other verdict leaves the regression open.
             const cell = entries[0]?.w[wf]
-            return !cell || displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d).verdict !== 'accepted'
+            if (!cell) return true
+            const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+            return verdict !== 'pass' && verdict !== 'accepted'
         })
 
     return (
