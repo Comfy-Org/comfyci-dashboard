@@ -27,7 +27,7 @@ export const CommitMetaChip: React.FC<{ meta: CommitMeta }> = ({ meta }) => (
                     #{meta.pr}
                 </a>
             )}
-            {meta.parents.map((p) => (
+            {(meta.parents ?? []).map((p) => (
                 <a
                     key={p}
                     href={`${COMFY_REPO}/commit/${p}`}
