@@ -6,10 +6,12 @@ export const ClearableLabel: React.FC<{
     id: string
     label: string
     value: string
+    /** Native tooltip explaining what the field matches. */
+    title?: string
     disabled?: boolean
     onClear: () => void
     onChange: (value: string) => void
-}> = ({ label, value, onClear, onChange, id, disabled = false }) => {
+}> = ({ label, value, onClear, onChange, id, title, disabled = false }) => {
     return (
         <div className="relative flex items-center">
             <input
@@ -17,6 +19,7 @@ export const ClearableLabel: React.FC<{
                 type="text"
                 placeholder={label}
                 aria-label={label}
+                title={title}
                 value={value}
                 disabled={disabled}
                 onChange={(e) => onChange(e.target.value)}
