@@ -28,6 +28,23 @@ export interface Thresholds {
     max_pct_pixels_changed: number
 }
 
+export interface RunTimings {
+    checkout_s?: number
+    pip_s?: number
+    server_start_s?: number
+    prompt_exec_s?: number
+}
+
+// Workflow adaptations made against the target commit's /object_info schema —
+// the automated equivalent of the manual QA reports' "schema drift" section.
+export interface ValidationReport {
+    ok?: boolean
+    missing_nodes?: string[]
+    stripped_inputs?: string[]
+    filled_defaults?: string[]
+    error?: string
+}
+
 export interface WorkflowRegressionResult {
     workflow_id: string
     worker_status: string
@@ -38,12 +55,12 @@ export interface WorkflowRegressionResult {
     golden_tag: string | null
     previous_commit: string | null
     gpu_name?: string | null
-    timings?: {
-        checkout_s?: number
-        pip_s?: number
-        server_start_s?: number
-        prompt_exec_s?: number
-    } | null
+    timings?: RunTimings | null
+    vram_peak_mb?: number | null
+    rss_peak_mb?: number | null
+    comfy_version?: string | null
+    torch_version?: string | null
+    python_version?: string | null
     error?: string
 }
 
@@ -67,4 +84,9 @@ export interface RunRecord {
     gpu_name?: string
     comfy_version?: string
     torch_version?: string
+    python_version?: string
+    vram_peak_mb?: number | null
+    rss_peak_mb?: number | null
+    timings?: RunTimings
+    validation?: ValidationReport
 }
