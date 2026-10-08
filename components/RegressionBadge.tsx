@@ -23,7 +23,7 @@ const VERDICT_META: Record<BadgeVerdict, { text: string; status: string; title: 
 }
 
 const INHERITED_META = {
-    text: 'Inherited',
+    text: 'Inherited drift',
     status: 'muted',
     title: 'Still failing, but bit-identical to the previous (also failing) run',
 }

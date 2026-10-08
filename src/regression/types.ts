@@ -107,7 +107,8 @@ export interface CommitMeta {
     subject: string
     author: string | null
     committed_ts: number | null
-    parents: string[]
+    // Absent or null when the worker did not resolve the parents (older builds).
+    parents?: string[] | null
     pr: number | null
 }
 
