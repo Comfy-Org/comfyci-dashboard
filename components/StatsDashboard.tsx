@@ -56,7 +56,7 @@ function computeStats(results: ActionJobResult[]): DashboardStats {
     }
 }
 
-const StatCard: React.FC<{
+export const StatCard: React.FC<{
     label: string
     value: React.ReactNode
     sub?: string
