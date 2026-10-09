@@ -2,7 +2,7 @@ import Link from 'next/link'
 import React from 'react'
 import { COMFY_REPO } from '../src/regression/client'
 import type { FirstBad } from '../src/regression/types'
-import { commitPageHref } from '../src/regression/validate'
+import { commitPageHref, isCommitSha, isPrNumber } from '../src/regression/validate'
 import { shortDate } from '../utils/time'
 
 /**
@@ -10,7 +10,7 @@ import { shortDate } from '../utils/time'
  * commit with its PR and author, that commit's subject, how long the chain has run,
  * the golden it fails against and the last good commit. Rendered as inline fragments
  * so the history page's banner and the commit page's summary can give it their own
- * lead-in and colour.
+ * lead-in and colour. GitHub links are only built from a PR number and a full SHA.
  */
 export const FirstBadLine: React.FC<{
     fb: FirstBad
@@ -22,27 +22,28 @@ export const FirstBadLine: React.FC<{
     dimClass?: string
 }> = ({ fb, branch, laneId, subject, dimClass = 'text-ash-500 dark:text-smoke-800' }) => {
     const href = (sha: string) => commitPageHref(branch, sha, laneId)
+    const pr = isPrNumber(fb.pr) ? fb.pr : null
     return (
         <>
             <Link href={href(fb.commit)} className="font-mono font-semibold hover:underline">
                 {fb.commit.slice(0, 7)}
             </Link>
-            {(fb.pr != null || fb.author) && (
+            {(pr != null || fb.author) && (
                 <>
                     {' '}
                     <span>
                         (
-                        {fb.pr != null && (
+                        {pr != null && (
                             <a
-                                href={`${COMFY_REPO}/pull/${fb.pr}`}
+                                href={`${COMFY_REPO}/pull/${pr}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="hover:underline"
                             >
-                                #{fb.pr}
+                                #{pr}
                             </a>
                         )}
-                        {fb.pr != null && fb.author && ', '}
+                        {pr != null && fb.author && ', '}
                         {fb.author})
                     </span>
                 </>
@@ -60,15 +61,21 @@ export const FirstBadLine: React.FC<{
             )}{' '}
             <span className={dimClass}>
                 · {fb.runs} run{fb.runs === 1 ? '' : 's'} · since {shortDate(fb.run_ts)}
-                {fb.golden ? ` · vs golden ${fb.golden}` : ''} ·{' '}
-                <a
-                    href={`${COMFY_REPO}/commit/${fb.commit}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                >
-                    GitHub
-                </a>
+                {fb.golden ? ` · vs golden ${fb.golden}` : ''}
+                {isCommitSha(fb.commit) && (
+                    <>
+                        {' '}
+                        ·{' '}
+                        <a
+                            href={`${COMFY_REPO}/commit/${fb.commit}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                        >
+                            GitHub
+                        </a>
+                    </>
+                )}
                 {fb.prev_good && (
                     <>
                         {' '}

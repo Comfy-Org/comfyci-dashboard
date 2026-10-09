@@ -7,6 +7,10 @@
 export const isCommitSha = (value: unknown): value is string =>
     typeof value === 'string' && /^[0-9a-f]{40}$/.test(value)
 
+/** A pull request number: a positive integer, never a string that could extend a link's path. */
+export const isPrNumber = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+
 /**
  * A git branch name in a conservative charset. Like git, no '/'-separated part may be
  * empty or start with '.', so '..', '//', and a leading or trailing '/' are all refused,

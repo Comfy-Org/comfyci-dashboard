@@ -5,7 +5,7 @@ import type { DisplayState } from './RegressionBadge'
 import { Surface } from './Surface'
 import { COMFY_REPO } from '../src/regression/client'
 import type { IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
-import { commitPageHref, isCommitSha } from '../src/regression/validate'
+import { commitPageHref, isCommitSha, isPrNumber } from '../src/regression/validate'
 import { formatRelative } from '../utils/time'
 
 interface CellState {
@@ -46,6 +46,7 @@ function HistoryRow({
         entry.range.n > 1
             ? `${COMFY_REPO}/compare/${entry.prev}...${entry.c}`
             : null
+    const pr = entry.m && isPrNumber(entry.m.pr) ? entry.m.pr : null
 
     return (
         <tr
@@ -84,17 +85,17 @@ function HistoryRow({
                         {entry.m.s}
                     </div>
                 )}
-                {entry.m && (entry.m.a || entry.m.pr != null) && (
+                {entry.m && (entry.m.a || pr != null) && (
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-ash-500/80 dark:text-smoke-800/80">
                         {entry.m.a && <span>{entry.m.a}</span>}
-                        {entry.m.pr != null && (
+                        {pr != null && (
                             <a
-                                href={`${COMFY_REPO}/pull/${entry.m.pr}`}
+                                href={`${COMFY_REPO}/pull/${pr}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="hover:text-electric hover:underline"
                             >
-                                #{entry.m.pr}
+                                #{pr}
                             </a>
                         )}
                     </div>
