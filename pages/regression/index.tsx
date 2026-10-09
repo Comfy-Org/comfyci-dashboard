@@ -30,6 +30,7 @@ import type {
     LatestPointer,
     RegressionSummary,
 } from '../../src/regression/types'
+import { commitPageHref, isBranchName, isCommitSha } from '../../src/regression/validate'
 import { formatRelative, monthKey } from '../../utils/time'
 
 const DEFAULT_BRANCH = 'master'
@@ -84,7 +85,7 @@ function LatestRunCard({
     latest: LatestPointer
     summary: RegressionSummary | null | undefined
 }) {
-    const href = `/regression/${branch}/${latest.commit}?lane=${laneId}`
+    const href = commitPageHref(branch, latest.commit, laneId)
     const workflows = summary
         ? Object.values(summary.workflows).sort((a, b) => a.workflow_id.localeCompare(b.workflow_id))
         : []
@@ -441,6 +442,10 @@ export default function RegressionIndexPage() {
     const lanesQuery = useLanes()
     const lane = resolveLane(lanesQuery.data, laneParam)
     const ready = router.isReady && !lanesQuery.isPending
+    // ?branch= and the inputs are free text: only well-formed values are fetched or linked.
+    const validBranch = isBranchName(branch)
+    const lookupSha = commitLookup.trim().toLowerCase()
+    const canLookup = validBranch && isCommitSha(lookupSha)
     const selectLane = (id: string) =>
         router.replace(
             { pathname: router.pathname, query: { ...router.query, lane: id } },
@@ -480,9 +485,9 @@ export default function RegressionIndexPage() {
                         onChange={setCommitLookup}
                         onClear={() => setCommitLookup('')}
                     />
-                    {commitLookup ? (
+                    {canLookup ? (
                         <Link
-                            href={`/regression/${branch}/${commitLookup.trim()}?lane=${lane.id}`}
+                            href={commitPageHref(branch, lookupSha, lane.id)}
                             className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-electric"
                         >
                             Open commit
@@ -490,6 +495,7 @@ export default function RegressionIndexPage() {
                     ) : (
                         <span
                             aria-disabled
+                            title={commitLookup ? 'Enter a full 40-character commit SHA' : undefined}
                             className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-ash-500/50"
                         >
                             Open commit
@@ -509,6 +515,13 @@ export default function RegressionIndexPage() {
                     busy={lanesQuery.isFetching}
                     onRetry={() => lanesQuery.refetch()}
                 />
+            ) : !validBranch ? (
+                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                    <span className="text-lg font-semibold">Not a valid branch</span>
+                    <span className="text-sm text-ash-500 dark:text-smoke-800">
+                        {'Branch names may use letters, digits, ".", "_", "-" and "/".'}
+                    </span>
+                </Surface>
             ) : (
                 <>
                     {lane.missing && (

@@ -1,5 +1,6 @@
 import React from 'react'
 import type { LaneRef } from '../src/regression/client'
+import { isCommitSha, isLaneId, isWorkflowId, shellQuote } from '../src/regression/validate'
 
 const WORKER_REPO = 'Comfy-Org/comfyci-runpod-worker'
 
@@ -34,14 +35,17 @@ function CopyableCommand({ command }: { command: string }) {
 /**
  * How to accept a failing output as the new golden: the worker's golden-baseline
  * workflow regenerates the output from a ref for review, then blesses it on a second run.
+ * The commands carry values from the URL and the published results, so they are only
+ * offered when every value has the expected shape, and each one is single-quoted anyway.
  */
 export const ReblessCallout: React.FC<{ workflowId: string; commit: string; lane: LaneRef }> = ({
     workflowId,
     commit,
     lane,
 }) => {
-    const laneFlag = lane.layout === 2 ? ` -f lane=${lane.id}` : ''
-    const base = `gh workflow run golden-baseline.yml --repo ${WORKER_REPO} -f ref=${commit} -f workflows=${workflowId}${laneFlag}`
+    const safe = isCommitSha(commit) && isWorkflowId(workflowId) && isLaneId(lane.id)
+    const laneFlag = lane.layout === 2 ? ` -f lane=${shellQuote(lane.id)}` : ''
+    const base = `gh workflow run golden-baseline.yml --repo ${WORKER_REPO} -f ref=${shellQuote(commit)} -f workflows=${shellQuote(workflowId)}${laneFlag}`
     return (
         <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 text-xs">
             <div className="font-semibold text-amber-600 dark:text-amber-400">Is this drift intended?</div>
@@ -51,10 +55,12 @@ export const ReblessCallout: React.FC<{ workflowId: string; commit: string; lane
                 outputs the run uploads, then bless it with a second run (bless_only=true). Use the
                 newest release tag as the ref instead when the baseline should track a release.
             </p>
-            <div className="mt-2 flex flex-col gap-2">
-                <CopyableCommand command={`${base} -f bless=false`} />
-                <CopyableCommand command={`${base} -f bless_only=true`} />
-            </div>
+            {safe && (
+                <div className="mt-2 flex flex-col gap-2">
+                    <CopyableCommand command={`${base} -f bless=false`} />
+                    <CopyableCommand command={`${base} -f bless_only=true`} />
+                </div>
+            )}
         </div>
     )
 }

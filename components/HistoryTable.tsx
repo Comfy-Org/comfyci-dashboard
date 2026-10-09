@@ -5,6 +5,7 @@ import type { DisplayState } from './RegressionBadge'
 import { Surface } from './Surface'
 import { COMFY_REPO } from '../src/regression/client'
 import type { IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
+import { commitPageHref, isCommitSha } from '../src/regression/validate'
 import { formatRelative } from '../utils/time'
 
 interface CellState {
@@ -34,11 +35,15 @@ function HistoryRow({
     const states = cells.flatMap((c) => (c.state ? [c.state] : []))
     const overall = overallDisplay(entry.o, states, entry.infra)
     const changed = states.some(changedHere)
-    const commitHref = `/regression/${branch}/${entry.c}?lane=${laneId}`
+    const commitHref = commitPageHref(branch, entry.c, laneId)
     // Built here rather than taken from the index's range.url: the page should not
     // navigate to whatever string the published JSON carries.
     const compareHref =
-        entry.prev && entry.range && entry.range.n != null && entry.range.n > 1
+        isCommitSha(entry.prev) &&
+        isCommitSha(entry.c) &&
+        entry.range &&
+        entry.range.n != null &&
+        entry.range.n > 1
             ? `${COMFY_REPO}/compare/${entry.prev}...${entry.c}`
             : null
 

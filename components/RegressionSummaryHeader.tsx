@@ -15,6 +15,7 @@ import type {
     Thresholds,
     WorkflowRegressionResult,
 } from '../src/regression/types'
+import { commitPageHref } from '../src/regression/validate'
 import { shortDate } from '../utils/time'
 
 const extLink = 'hover:text-electric hover:underline'
@@ -57,7 +58,7 @@ function FailingWorkflow({
     firstBadSubject?: string
 }) {
     const { data: golden } = useGoldenCurrent(result.workflow_id, lane)
-    const href = (sha: string) => `/regression/${branch}/${sha}?lane=${lane.id}`
+    const href = (sha: string) => commitPageHref(branch, sha, lane.id)
     const vg = result.vs_golden
     const vp = result.vs_previous
     const clauses = vg && !vg.error ? metricClauses(vg, result.thresholds_used) : []

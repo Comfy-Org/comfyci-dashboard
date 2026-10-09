@@ -31,6 +31,13 @@ import type {
     RunEnv,
     WorkflowRegressionResult,
 } from '../../../src/regression/types'
+import {
+    commitPageHref,
+    isBranchName,
+    isCommitSha,
+    isPathSegment,
+    isWorkflowId,
+} from '../../../src/regression/validate'
 
 function Figure({ src, caption }: { src: string; caption: string }) {
     const [failed, setFailed] = React.useState(false)
@@ -118,8 +125,11 @@ function WorkflowCard({
         result.golden_tag ?? undefined,
         lane
     )
+    // Output and figure links are built from the workflow id and file names the results
+    // carry; one that is not a plain path segment is not linked at all.
+    const linkable = isWorkflowId(result.workflow_id)
     const pngs = (run?.outputs ?? []).filter(
-        (o) => o.filename.endsWith('.png') && !o.truncated
+        (o) => linkable && isPathSegment(o.filename) && o.filename.endsWith('.png') && !o.truncated
     )
 
     const timings = run?.timings ?? result.timings
@@ -144,9 +154,9 @@ function WorkflowCard({
         ...(validation?.filled_defaults ?? []).map((n) => `missing input filled from schema default: ${n}`),
     ]
     const showGoldenFigures =
-        result.vs_golden && !result.vs_golden.identical && !result.vs_golden.error
+        linkable && result.vs_golden && !result.vs_golden.identical && !result.vs_golden.error
     const showPrevFigures =
-        result.vs_previous && !result.vs_previous.identical && !result.vs_previous.error
+        linkable && result.vs_previous && !result.vs_previous.identical && !result.vs_previous.error
 
     return (
         <Surface className="p-5">
@@ -164,7 +174,7 @@ function WorkflowCard({
                         <span>
                             prev:{' '}
                             <Link
-                                href={`/regression/${branch}/${result.previous_commit}?lane=${lane.id}`}
+                                href={commitPageHref(branch, result.previous_commit, lane.id)}
                                 className="font-mono hover:text-electric hover:underline"
                             >
                                 {result.previous_commit.slice(0, 7)}
@@ -326,19 +336,44 @@ export default function RegressionCommitPage() {
     const branch = typeof router.query.branch === 'string' ? router.query.branch : undefined
     const commit = typeof router.query.commit === 'string' ? router.query.commit : undefined
     const laneParam = typeof router.query.lane === 'string' ? router.query.lane : undefined
+    // The route params name the files to fetch and go into links and copyable commands,
+    // so nothing is fetched for a branch or commit that does not have the expected shape.
+    const validBranch = isBranchName(branch)
+    const validCommit = isCommitSha(commit)
     const lanesQuery = useLanes()
     const lane = resolveLane(lanesQuery.data, laneParam)
     // Wait for lanes.json so the summary is fetched from the right lane tree the first time;
     // when that fetch fails the failure is reported rather than a lane tree guessed.
-    const ready = router.isReady && !lanesQuery.isPending && !lanesQuery.isError
+    const ready =
+        router.isReady && validBranch && validCommit && !lanesQuery.isPending && !lanesQuery.isError
     const summaryQuery = useRegressionSummary(ready ? branch : undefined, commit, lane)
     const summary = summaryQuery.data
     const headQuery = useIndexHead(ready ? branch : undefined, lane.id)
     const head = headQuery.data
 
+    if (router.isReady && (!validBranch || !validCommit)) {
+        return (
+            <div className="pt-8">
+                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                    <span className="text-lg font-semibold">
+                        {validBranch ? 'Not a valid commit' : 'Not a valid branch'}
+                    </span>
+                    <span className="text-sm text-ash-500 dark:text-smoke-800">
+                        {validBranch
+                            ? 'Regression runs are looked up by a full 40-character lowercase commit SHA.'
+                            : 'Branch names may use letters, digits, ".", "_", "-" and "/".'}
+                    </span>
+                    <Link href="/regression" className="mt-2 text-sm text-electric hover:underline">
+                        Back to regression history
+                    </Link>
+                </Surface>
+            </div>
+        )
+    }
+
     if (
-        !branch ||
-        !commit ||
+        !validBranch ||
+        !validCommit ||
         !router.isReady ||
         lanesQuery.isPending ||
         (ready && summaryQuery.isPending)
@@ -388,7 +423,7 @@ export default function RegressionCommitPage() {
                         {lane.info && <> ({lane.info.label})</>}.
                     </span>
                     <Link
-                        href={`/regression?lane=${lane.id}`}
+                        href={`/regression?lane=${encodeURIComponent(lane.id)}`}
                         className="mt-2 text-sm text-electric hover:underline"
                     >
                         Back to regression history
@@ -440,7 +475,7 @@ export default function RegressionCommitPage() {
                     <LaneTabs
                         lanes={lanesQuery.data}
                         value={lane.id}
-                        hrefFor={(id) => `/regression/${branch}/${commit}?lane=${id}`}
+                        hrefFor={(id) => commitPageHref(branch, commit, id)}
                     />
                     <div className="flex flex-wrap items-center justify-end gap-2">
                         {meta && <CommitMetaChip meta={meta} />}

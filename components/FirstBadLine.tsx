@@ -2,6 +2,7 @@ import Link from 'next/link'
 import React from 'react'
 import { COMFY_REPO } from '../src/regression/client'
 import type { FirstBad } from '../src/regression/types'
+import { commitPageHref } from '../src/regression/validate'
 import { shortDate } from '../utils/time'
 
 /**
@@ -20,7 +21,7 @@ export const FirstBadLine: React.FC<{
     /** Classes for the details after the commit and its origin. */
     dimClass?: string
 }> = ({ fb, branch, laneId, subject, dimClass = 'text-ash-500 dark:text-smoke-800' }) => {
-    const href = (sha: string) => `/regression/${branch}/${sha}?lane=${laneId}`
+    const href = (sha: string) => commitPageHref(branch, sha, laneId)
     return (
         <>
             <Link href={href(fb.commit)} className="font-mono font-semibold hover:underline">
