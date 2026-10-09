@@ -22,9 +22,13 @@ export function isBranchName(value: unknown): value is string {
     return value.split('/').every((part) => part !== '' && !part.startsWith('.'))
 }
 
-/** A regression workflow id: the worker names them after their workflow file stems. */
+/**
+ * A regression workflow id such as flux_dev_t2i. Ids are the keys of the worker's
+ * manifest, which does not restrict them, so capitals, dots and dashes (as in template
+ * names like video_wan2_2_14B_t2v) are accepted; a leading '.' or '-' or any '/' is not.
+ */
 export const isWorkflowId = (value: unknown): value is string =>
-    typeof value === 'string' && /^[a-z0-9_]{1,100}$/.test(value)
+    typeof value === 'string' && /^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/.test(value)
 
 /** A lane id such as py312-torch2.11.0-cu128. */
 export const isLaneId = (value: unknown): value is string =>
