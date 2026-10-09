@@ -36,7 +36,7 @@ function CopyableCommand({ command }: { command: string }) {
  * How to accept a failing output as the new golden: the worker's golden-baseline
  * workflow regenerates the output from a ref for review, then blesses it on a second run.
  * The commands carry values from the URL and the published results, so they are only
- * offered when every value has the expected shape, and each one is single-quoted anyway.
+ * offered when every value has the expected shape, and each one goes through shellQuote.
  */
 export const ReblessCallout: React.FC<{ workflowId: string; commit: string; lane: LaneRef }> = ({
     workflowId,

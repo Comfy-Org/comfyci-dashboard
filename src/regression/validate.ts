@@ -35,10 +35,14 @@ export const isPathSegment = (value: unknown): value is string =>
     typeof value === 'string' && /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/.test(value)
 
 /**
- * Single-quotes a value for a POSIX shell command shown to be copied: nothing inside
- * single quotes is expanded, and an embedded quote is closed, escaped and reopened.
+ * Quotes a value for a shell command shown to be copied. A value of only letters, digits
+ * and "._/-" means the same to every shell and is left bare, so the command also pastes
+ * into cmd.exe (which would keep single quotes as part of the value). Anything else is
+ * single-quoted for a POSIX shell: nothing inside is expanded, and an embedded quote is
+ * closed, escaped and reopened.
  */
-export const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`
+export const shellQuote = (value: string) =>
+    /^[A-Za-z0-9._/-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
 
 /** Link to a commit's regression page, each segment encoded so it stays one path segment. */
 export const commitPageHref = (branch: string, commit: string, laneId: string) =>
