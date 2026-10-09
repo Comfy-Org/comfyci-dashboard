@@ -2,7 +2,7 @@ import Link from 'next/link'
 import React from 'react'
 import { FirstBadLine } from './FirstBadLine'
 import { RegressionBadge } from './RegressionBadge'
-import type { DisplayState } from './RegressionBadge'
+import type { BadgeVerdict, DisplayState } from './RegressionBadge'
 import { Surface, SectionTitle } from './Surface'
 import { useGoldenCurrent } from '../src/regression/client'
 import type { LaneRef } from '../src/regression/client'
@@ -144,11 +144,14 @@ export const RegressionSummaryHeader: React.FC<{
     const results = Object.values(summary.workflows).sort((a, b) =>
         a.workflow_id.localeCompare(b.workflow_id)
     )
-    const count = (pred: (r: WorkflowRegressionResult) => boolean) => results.filter(pred).length
-    const pass = count((r) => r.verdict === 'pass')
-    const fail = count((r) => r.verdict === 'fail')
-    const errored = count((r) => r.verdict === 'execution_error')
-    const accepted = count((r) => states[r.workflow_id]?.verdict === 'accepted')
+    // Tallied by display state: a re-blessed failure shows as accepted drift (counted under
+    // "other"), not as a failure as well. Inherited drift is still a failure.
+    const count = (verdict: BadgeVerdict) =>
+        results.filter((r) => (states[r.workflow_id]?.verdict ?? r.verdict) === verdict).length
+    const pass = count('pass')
+    const fail = count('fail')
+    const errored = count('execution_error')
+    const accepted = count('accepted')
     // Execution errors are the most actionable non-drift failure, so they get a line too.
     const explained = results.filter((r) => r.verdict === 'fail' || r.verdict === 'execution_error')
     const subjectOf = (fb: FirstBad) =>

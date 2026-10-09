@@ -450,10 +450,11 @@ export default function RegressionCommitPage() {
     const infra =
         summary.has_infra_error ?? workflows.some((wf) => wf.verdict === 'infra_error')
     const overall = overallDisplay(summary.overall, Object.values(states), infra)
+    // The index entry does not carry parents: leave them unknown rather than "none".
     const meta: CommitMeta | null =
         summary.commit_meta ??
         (entry?.m
-            ? { subject: entry.m.s, author: entry.m.a, committed_ts: entry.m.ct, parents: [], pr: entry.m.pr }
+            ? { subject: entry.m.s, author: entry.m.a, committed_ts: entry.m.ct, parents: null, pr: entry.m.pr }
             : null)
 
     return (
