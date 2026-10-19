@@ -29,21 +29,29 @@ export const COMFY_REPO = 'https://github.com/Comfy-Org/ComfyUI'
 // against its own shape below, and the whole path once more before it is joined to the
 // base, so nothing can add '..', a query string, a fragment or another host to a request.
 
-const RESULT_PATH = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/
+export const RESULT_PATH = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/
 
-/** Absolute URL of a file under the results base; throws for a path of anything but plain segments. */
-function resultUrl(path: string): string {
+/**
+ * Absolute URL of a file under a results base; throws for a path of anything but plain
+ * segments. Shared by every static-JSON client (regression, frontend) so each base gets
+ * the same path check.
+ */
+export function resultUrlFor(base: string, path: string): string {
     if (!RESULT_PATH.test(path)) throw new Error('Refusing to fetch an invalid results path')
-    return `${REGRESSION_BASE}/${path}`
+    return `${base}/${path}`
 }
 
+/** Absolute URL of a file under the regression results base. */
+const resultUrl = (path: string) => resultUrlFor(REGRESSION_BASE, path)
+
 /** Hands back `value` when it passes `ok`, else throws so no URL is built from it. */
-function checked(kind: string, value: string | null | undefined, ok: (v: string) => boolean): string {
+export function checked(kind: string, value: string | null | undefined, ok: (v: string) => boolean): string {
     if (value == null || !ok(value)) throw new Error(`Refusing to fetch results for an invalid ${kind}`)
     return value
 }
 
-async function fetchJsonOrNull<T>(url: string): Promise<T | null> {
+/** Fetches a published JSON file; a 404 or 403 (not published yet) is null, anything else throws. */
+export async function fetchJsonOrNull<T>(url: string): Promise<T | null> {
     const res = await fetch(url, { cache: 'no-store' })
     if (res.status === 404 || res.status === 403) return null
     if (!res.ok) throw new Error(`${res.status} fetching ${url}`)
@@ -124,11 +132,11 @@ export function resolveLane(
 // Every file may be absent while the worker catches up: data is `null` then, never an error.
 // The URL is built up front for the query key; when it fails validation the query rejects
 // with that error instead of sending a request (and nothing throws during render).
-function staticQuery<T>(key: string, buildPath: () => string) {
+export function staticQueryFor<T>(base: string, key: string, buildPath: () => string) {
     let url: string | null = null
     let invalid: unknown = null
     try {
-        url = resultUrl(buildPath())
+        url = resultUrlFor(base, buildPath())
     } catch (e) {
         invalid = e
     }
@@ -138,8 +146,15 @@ function staticQuery<T>(key: string, buildPath: () => string) {
     }
 }
 
+const staticQuery = <T>(key: string, buildPath: () => string) =>
+    staticQueryFor<T>(REGRESSION_BASE, key, buildPath)
+
+/** One static JSON file under `base` as a query; `enabled` false leaves it pending without a request. */
+export const useStaticJsonFor = <T>(base: string, key: string, buildPath: () => string, enabled: boolean) =>
+    useQuery({ ...staticQueryFor<T>(base, key, buildPath), enabled })
+
 const useStaticJson = <T>(key: string, buildPath: () => string, enabled: boolean) =>
-    useQuery({ ...staticQuery<T>(key, buildPath), enabled })
+    useStaticJsonFor<T>(REGRESSION_BASE, key, buildPath, enabled)
 
 export const useLanes = () => useStaticJson<LanesIndex>('regression-lanes', () => 'index/lanes.json', true)
 
