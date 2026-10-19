@@ -34,15 +34,24 @@ export interface DisplayState {
     inherited: boolean
 }
 
+/** Text, status colour and hover explanation for a display state; shared by badges and dots. */
+export function badgeMeta(verdict: BadgeVerdict, inherited?: boolean) {
+    return (
+        (inherited && verdict === 'fail' ? INHERITED_META : VERDICT_META[verdict]) ?? {
+            text: verdict,
+            status: 'default',
+            title: verdict,
+        }
+    )
+}
+
 export const RegressionBadge: React.FC<{
     verdict: BadgeVerdict
     /** Failing but bit-identical to the previous failing run: nothing changed at this commit. */
     inherited?: boolean
     onClick?: () => void
 }> = ({ verdict, inherited, onClick }) => {
-    const meta =
-        (inherited && verdict === 'fail' ? INHERITED_META : VERDICT_META[verdict]) ??
-        { text: verdict, status: 'default', title: verdict }
+    const meta = badgeMeta(verdict, inherited)
     return (
         <WorkflowStatusButton text={meta.text} status={meta.status} title={meta.title} onClick={onClick} />
     )

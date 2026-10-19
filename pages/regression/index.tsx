@@ -13,6 +13,8 @@ import { Sparkline } from '../../components/Sparkline'
 import { StaleBanner } from '../../components/StaleBanner'
 import { StatCard } from '../../components/StatsDashboard'
 import { Surface, SectionTitle } from '../../components/Surface'
+import { cellState, driftStartedHere, driftedCell, scoredCell } from '../../components/WorkflowDots'
+import { WorkflowStrip } from '../../components/WorkflowStrip'
 import {
     resolveLane,
     useIndexHead,
@@ -31,6 +33,7 @@ import type {
     RegressionSummary,
 } from '../../src/regression/types'
 import { commitPageHref, isBranchName, isCommitSha } from '../../src/regression/validate'
+import { orderWorkflows, slotOf } from '../../src/regression/workflows'
 import { formatRelative, monthKey } from '../../utils/time'
 
 const DEFAULT_BRANCH = 'master'
@@ -143,7 +146,7 @@ function FirstBadBanner({
             role="alert"
             className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-red-500/30 bg-red-500/[0.06] px-4 py-2.5 text-sm text-red-600 dark:text-red-400"
         >
-            <span className="font-mono font-semibold">{wf}</span>
+            <span className="break-all font-mono font-semibold">{wf}</span>
             <span>failing since</span>
             <FirstBadLine
                 fb={fb}
@@ -179,15 +182,8 @@ function LaneKpis({
               return verdict === 'fail' || verdict === 'execution_error' ? [{ wf, verdict }] : []
           })
         : []
-    const primaryWf = workflows[0]
-    const execs = window
-        .map((e) => e.w[primaryWf]?.exec)
-        .filter((x): x is number => x != null)
-        .sort((a, b) => a - b)
-    const median = execs.length ? execs[Math.floor(execs.length / 2)] : null
-
     return (
-        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
                 label="Pass Rate"
                 value={scored.length ? `${((passed / scored.length) * 100).toFixed(0)}%` : '—'}
@@ -211,13 +207,6 @@ function LaneKpis({
                 }
             />
             <StatCard
-                label="Median Exec"
-                value={median == null ? '—' : `${median.toFixed(1)}s`}
-                sub={primaryWf ? `${primaryWf} · last ${window.length} runs` : 'no workflows'}
-                dotClass="bg-plum-600 dark:bg-plum-300"
-                valueClass="text-plum-600 dark:text-plum-300"
-            />
-            <StatCard
                 label="Last Run"
                 value={latest ? formatRelative(latest.t) : '—'}
                 sub={latest ? new Date(latest.t * 1000).toLocaleString() : undefined}
@@ -228,43 +217,157 @@ function LaneKpis({
     )
 }
 
-function Trends({ entries, workflows }: { entries: IndexEntry[]; workflows: string[] }) {
+/** A workflow's drift history over the sparkline window. */
+interface DriftRow {
+    wf: string
+    /** Runs in the window that compared this workflow against its golden (or failed trying). */
+    scored: number
+    /** Runs in the window where the output was not bit-identical to the golden. */
+    offGolden: number
+    /** Newest run in the window where a drift or execution failure began. */
+    startedAt: IndexEntry | null
+    /** Display state in the newest run that has this workflow. */
+    now: ReturnType<typeof cellState> | null
+    /** Latest verdict is still failing: sorts first. */
+    open: boolean
+}
+
+function Trends({
+    branch,
+    laneId,
+    entries,
+    workflows,
+    goldens,
+}: {
+    branch: string
+    laneId: string
+    entries: IndexEntry[]
+    workflows: string[]
+    goldens?: LaneInfo['goldens']
+}) {
     const window = entries.slice(0, SPARK_WINDOW)
     if (window.length < 2) return null
+
+    // Three buckets: drifted (a card), stable (compared at least once, never moved), and
+    // "without comparison" (only infra errors or missing baselines, so nothing is known).
+    const drifted: DriftRow[] = []
+    const stable: string[] = []
+    const unscored: string[] = []
+    let unseen = 0
+    for (const wf of workflows) {
+        const runs = window.filter((e) => e.w[wf])
+        if (runs.length === 0) {
+            unseen += 1
+            continue
+        }
+        const states = runs.map((e) => cellState(e.w[wf], wf, goldens))
+        const offGolden = runs.filter((e, i) => driftedCell(e.w[wf], states[i])).length
+        const scored = states.filter(scoredCell).length
+        if (offGolden > 0) {
+            const now = states[0]
+            drifted.push({
+                wf,
+                scored,
+                offGolden,
+                startedAt: runs.find((e) => driftStartedHere(e.w[wf])) ?? null,
+                now,
+                open: now.verdict === 'fail' || now.verdict === 'execution_error',
+            })
+        } else if (scored > 0) {
+            stable.push(wf)
+        } else {
+            unscored.push(wf)
+        }
+    }
+    drifted.sort((a, b) => Number(b.open) - Number(a.open) || slotOf(workflows, a.wf) - slotOf(workflows, b.wf))
+
+    const summary = [
+        drifted.length === 0 && unscored.length === 0 && unseen === 0
+            ? `All ${stable.length} stable`
+            : `${stable.length} stable`,
+        unscored.length ? `${unscored.length} without comparison` : null,
+        unseen ? `${unseen} not run in this window` : null,
+    ]
+        .filter(Boolean)
+        .join(' · ')
+
     return (
         <Surface className="mb-6 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <SectionTitle>Drift vs golden</SectionTitle>
                 <span className="text-[11px] text-ash-500 dark:text-smoke-800">
-                    mean MSE per run · last {window.length} runs, oldest to newest
+                    mean MSE per run · last {window.length} runs, oldest to newest · {drifted.length} of{' '}
+                    {workflows.length} drifted
                 </span>
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {workflows.map((wf) => {
-                    const points = window
-                        .map((e) => ({ commit: e.c, ts: e.t, value: e.w[wf]?.mse ?? null }))
-                        .reverse()
-                    const latest = points[points.length - 1]?.value
-                    return (
-                        <div
-                            key={wf}
-                            className="rounded-xl border border-smoke-300 dark:border-charcoal-400/60 px-4 py-3"
-                        >
-                            <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100">
-                                    {wf}
-                                </span>
-                                <span className="font-mono text-xs tabular-nums text-ash-500 dark:text-smoke-800">
-                                    {latest == null ? '—' : latest.toFixed(3)}
-                                </span>
+            {drifted.length > 0 && (
+                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {drifted.map((row) => {
+                        const points = window
+                            .map((e) => ({ commit: e.c, ts: e.t, value: e.w[row.wf]?.mse ?? null }))
+                            .reverse()
+                        const latest = points[points.length - 1]?.value
+                        return (
+                            <div
+                                key={row.wf}
+                                className="rounded-xl border border-smoke-300 dark:border-charcoal-400/60 px-4 py-3"
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span
+                                        className="min-w-0 truncate font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100"
+                                        title={row.wf}
+                                    >
+                                        {row.wf}
+                                    </span>
+                                    <span className="flex shrink-0 items-center gap-2">
+                                        {row.now && (
+                                            <RegressionBadge verdict={row.now.verdict} inherited={row.now.inherited} />
+                                        )}
+                                        <span className="font-mono text-xs tabular-nums text-ash-500 dark:text-smoke-800">
+                                            {latest == null ? '—' : latest.toFixed(3)}
+                                        </span>
+                                    </span>
+                                </div>
+                                <div className="mt-2">
+                                    <Sparkline points={points} />
+                                </div>
+                                <div className="mt-1 text-[11px] text-ash-500 dark:text-smoke-800">
+                                    {row.offGolden} of {row.scored} runs off golden
+                                    {row.startedAt && (
+                                        <>
+                                            {' · '}
+                                            {row.startedAt.w[row.wf].v === 'execution_error' ? 'failed at' : 'drift at'}{' '}
+                                            <Link
+                                                href={commitPageHref(branch, row.startedAt.c, laneId)}
+                                                className="font-mono hover:underline"
+                                            >
+                                                {row.startedAt.c.slice(0, 7)}
+                                            </Link>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                            <div className="mt-2">
-                                <Sparkline points={points} />
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
+                        )
+                    })}
+                </div>
+            )}
+            <p
+                className="mt-3 truncate text-xs text-ash-500 dark:text-smoke-800"
+                title={[
+                    stable.length ? `stable: ${stable.join(', ')}` : null,
+                    unscored.length ? `without comparison: ${unscored.join(', ')}` : null,
+                ]
+                    .filter(Boolean)
+                    .join('\n')}
+            >
+                {summary}
+                {stable.length > 0 && (
+                    <>
+                        {' · '}
+                        <span className="font-mono">{stable.join(', ')}</span>
+                    </>
+                )}
+            </p>
         </Surface>
     )
 }
@@ -291,8 +394,8 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
         head?.entries ?? [],
         shardQueries.flatMap((q) => q.data?.entries ?? [])
     )
-    const workflows = Array.from(new Set(entries.flatMap((e) => Object.keys(e.w)))).sort()
     const goldens = lane.info?.goldens
+    const workflows = orderWorkflows(entries, goldens)
     const next = head ? nextShard(head, entries, olderMonths) : null
     const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
     const pageEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -363,7 +466,7 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
     }
 
     const firstBad = Object.entries(head.first_bad ?? {})
-        .sort(([a], [b]) => a.localeCompare(b))
+        .sort(([a], [b]) => slotOf(workflows, a) - slotOf(workflows, b) || a.localeCompare(b))
         .filter(([wf]) => {
             // A passing or re-blessed latest run closes the chain even before the worker
             // prunes it from first_bad; any other verdict leaves the regression open.
@@ -372,6 +475,7 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
             const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
             return verdict !== 'pass' && verdict !== 'accepted'
         })
+    const openChains: Record<string, FirstBad> = Object.fromEntries(firstBad)
 
     return (
         <>
@@ -384,7 +488,15 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
                 <FirstBadBanner key={wf} wf={wf} fb={fb} branch={branch} laneId={lane.id} entries={entries} />
             ))}
             <LaneKpis entries={entries} workflows={workflows} goldens={goldens} />
-            <Trends entries={entries} workflows={workflows} />
+            <WorkflowStrip
+                branch={branch}
+                laneId={lane.id}
+                entries={entries}
+                workflows={workflows}
+                goldens={goldens}
+                firstBad={openChains}
+            />
+            <Trends branch={branch} laneId={lane.id} entries={entries} workflows={workflows} goldens={goldens} />
             {entries.length === 0 ? (
                 <EmptyState branch={branch} />
             ) : (
