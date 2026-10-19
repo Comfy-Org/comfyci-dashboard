@@ -134,7 +134,8 @@ const Row: React.FC<{ entry: CiEntry; columns: CiColumn[] }> = ({ entry, columns
                 <div className="text-sm">{formatRelative(entry.ct)}</div>
                 <div className={`text-[11px] ${dim}`}>{new Date(entry.ct * 1000).toLocaleString()}</div>
             </td>
-            <td className="px-5 py-3 align-top">
+            {/* Centred like the dots to its right, so the verdict sits on the row's dot line. */}
+            <td className="px-5 py-3 align-middle">
                 <WorkflowStatusButton text={meta.text} status={meta.status} title={meta.title} />
             </td>
             {columns.map((col) => (
