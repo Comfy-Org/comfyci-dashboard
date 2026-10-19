@@ -1,4 +1,6 @@
 import React from 'react'
+import { DOT_SHAPES, Dot } from './Dot'
+import type { DotSpec } from './Dot'
 import { badgeMeta, displayVerdict } from './RegressionBadge'
 import type { DisplayState } from './RegressionBadge'
 import type { IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
@@ -69,28 +71,9 @@ export function dotKind(state: DisplayState | null): DotKind {
     return state.verdict
 }
 
-// Shape first, colour second, so a row still reads in greyscale: filled circle, filled
-// square, hollow square, diamond, "!" square, triangle, "?" ring, dash. Every pair of
-// kinds differs by shape, fill or glyph; the colours are the ones the badges already use.
-// Amber steps down one shade on white so the small shapes keep their contrast.
-const DOT: Record<DotKind, { shape: string; glyph?: string }> = {
-    pass: { shape: 'h-2.5 w-2.5 rounded-full bg-emerald-500' },
-    fail: { shape: 'h-2.5 w-2.5 rounded-[2px] bg-red-500' },
-    inherited: { shape: 'h-2.5 w-2.5 rounded-[2px] border-2 border-red-500/70' },
-    accepted: { shape: 'h-2 w-2 rotate-45 rounded-[1px] bg-amber-500 dark:bg-amber-400' },
-    execution_error: {
-        shape: 'h-3.5 w-3.5 rounded-[3px] bg-red-500 text-[9px] font-bold leading-none text-white',
-        glyph: '!',
-    },
-    infra_error: {
-        shape: 'h-3 w-3 bg-amber-500 dark:bg-amber-400 [clip-path:polygon(50%_0%,100%_100%,0%_100%)]',
-    },
-    no_baseline: {
-        shape: 'h-3.5 w-3.5 rounded-full border border-ash-500/70 dark:border-smoke-700/70 text-[9px] font-bold leading-none text-ash-500 dark:text-smoke-700',
-        glyph: '?',
-    },
-    missing: { shape: 'h-[1.5px] w-2 rounded-full bg-ash-500/50 dark:bg-smoke-800/60' },
-}
+// The shapes live in Dot.tsx (shared with the Frontend tab's CI dots): shape first,
+// colour second, so a row still reads in greyscale.
+const DOT: Record<DotKind, DotSpec> = DOT_SHAPES
 
 /** Legend wording per kind; verdict texts come from the badge metadata so they never diverge. */
 export function dotText(kind: DotKind): string {
@@ -130,20 +113,7 @@ export const WorkflowDot: React.FC<{ kind: DotKind; label?: string; title?: stri
     kind,
     label,
     title,
-}) => {
-    const d = DOT[kind]
-    return (
-        <span
-            role={label ? 'img' : undefined}
-            aria-label={label}
-            aria-hidden={label ? undefined : true}
-            title={title ?? label}
-            className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center"
-        >
-            <span className={`inline-flex items-center justify-center ${d.shape}`}>{d.glyph}</span>
-        </span>
-    )
-}
+}) => <Dot spec={DOT[kind]} label={label} title={title} />
 
 const GROUP = 5
 

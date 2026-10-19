@@ -59,7 +59,7 @@ function computeStats(results: ActionJobResult[]): DashboardStats {
 export const StatCard: React.FC<{
     label: string
     value: React.ReactNode
-    sub?: string
+    sub?: React.ReactNode
     dotClass: string
     valueClass?: string
 }> = ({ label, value, sub, dotClass, valueClass = '' }) => (

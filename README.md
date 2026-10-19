@@ -28,6 +28,10 @@ Install [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.pr
     - `pnpm run dev`
     - Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Frontend tab
+
+`/frontend` shows ComfyUI_frontend's CI on `main` per commit and workflow, its perf baselines per scenario (judged by the frontend repo's own z-score rule, published with the data), and the daily custom-nodes gate per shard with the pinned core and the current streak. It reads only static JSON that the worker repo's `frontend-index` workflow publishes under `frontend/` on its `results` branch; no token or server code. `NEXT_PUBLIC_FRONTEND_BASE` overrides the base URL (default: the results branch via raw.githubusercontent.com); set it to `/fixtures/frontend` to render the checked-in samples in `public/fixtures/frontend/` before the publisher has run. The samples are the publisher's own dry-run output (only bot author logins are replaced by `merge-bot`), never hand-written: regenerate them from the worker repo with `python scripts/frontend_index.py --skip-publish --results-workdir <scratch> --backfill-days 3`, copy its `frontend/` tree over `public/fixtures/frontend/`, and point the shard imports in `src/frontend/fixtures.check.ts` at the new month if it changed. That file makes `tsc` and `next build` check the samples against `src/frontend/types.ts`, so a renamed or dropped key fails the build instead of the live page.
+
 ### Generate Code Stub based on OpenAPI Spec
 
 Start the dev server.

@@ -7,6 +7,7 @@ const NAV = [
     { href: "/", label: "All Results" },
     { href: "/waterfall", label: "Waterfall" },
     { href: "/regression", label: "Regression" },
+    { href: "/frontend", label: "Frontend" },
 ]
 
 const ComfyMark = () => (
@@ -46,7 +47,9 @@ export const Header = () => {
                     <ComfyMark />
                 </Link>
 
-                <nav className="flex items-center gap-1 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 p-1">
+                {/* min-w-0 + overflow-x-auto: on a phone the four links scroll inside the pill
+                    instead of pushing the page wider than the viewport. */}
+                <nav className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 p-1">
                     {NAV.map(({ href, label }) => {
                         const active = isActive(href)
                         return (
@@ -54,7 +57,7 @@ export const Header = () => {
                                 key={href}
                                 href={href}
                                 className={[
-                                    "rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
+                                    "whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold transition-colors sm:px-4",
                                     active
                                         ? "bg-electric text-ink-900 shadow-sm"
                                         : "text-ash-500 dark:text-smoke-700 hover:text-charcoal-800 dark:hover:text-white",
