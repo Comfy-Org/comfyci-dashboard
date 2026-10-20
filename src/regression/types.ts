@@ -177,6 +177,10 @@ export interface LanesIndex {
 // also failing, run. Null otherwise.
 export type DriftKind = 'new_drift' | 'inherited'
 
+// How ComfyUI's startup went for one custom-node pack the workflow installs: imported,
+// failed to import, or not found in the startup log at all.
+export type PackImportStatus = 'ok' | 'failed' | 'missing'
+
 export interface IndexWorkflowCell {
     v: RegressionVerdict
     d: DriftKind | null
@@ -189,6 +193,9 @@ export interface IndexWorkflowCell {
     vram: number | null
     g: string | null
     th: string | null
+    // Import status per custom-node pack, keyed by the pack's custom_nodes directory name.
+    // Present only on the cells of workflows that install packs.
+    cn?: Record<string, PackImportStatus>
 }
 
 export interface IndexEntry {
