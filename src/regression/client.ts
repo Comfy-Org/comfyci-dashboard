@@ -161,6 +161,14 @@ export const useLanes = () => useStaticJson<LanesIndex>('regression-lanes', () =
 export const useIndexHead = (branch?: string, lane?: string) =>
     useStaticJson<IndexHead>('regression-index', () => `${indexPath(branch, lane)}.json`, !!branch && !!lane)
 
+/** The index heads of several branch and lane pairs at once; shares the cache with useIndexHead. */
+export const useIndexHeads = (refs: { branch: string; lane: string }[]) =>
+    useQueries({
+        queries: refs.map((r) =>
+            staticQuery<IndexHead>('regression-index', () => `${indexPath(r.branch, r.lane)}.json`)
+        ),
+    })
+
 const shardQuery = (branch: string, lane: string, month: string) =>
     staticQuery<IndexShard>(
         'regression-index-shard',

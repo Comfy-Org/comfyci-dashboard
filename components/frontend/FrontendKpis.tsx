@@ -1,8 +1,11 @@
 import React from 'react'
 import { StatCard } from '../StatsDashboard'
-import type { useFrontendCi, useFrontendGate, useFrontendPerf } from '../../src/frontend/client'
+import { cellState } from '../WorkflowDots'
+import type { PackLanesState, useFrontendCi, useFrontendGate, useFrontendPerf } from '../../src/frontend/client'
 import { coreCommitUrl, frontendCommitUrl } from '../../src/frontend/client'
 import { cleanCounts, isRed, proofCounts, streakPhrase } from '../../src/frontend/gate'
+import { newestPackRun, packNames, packTone } from '../../src/frontend/packs'
+import type { PackTone } from '../../src/frontend/packs'
 import { latestSummary, shortPerfSha } from '../../src/frontend/perf'
 import { formatRelative } from '../../utils/time'
 
@@ -158,15 +161,58 @@ function GateCard({ query }: { query: ReturnType<typeof useFrontendGate> }) {
     )
 }
 
-/** The three headline numbers: main at HEAD, perf at the latest baseline, the custom-nodes gate. */
+/** Value colour per pack tone, the same tone the section's status line shows. */
+const TONE_CLASS: Record<PackTone, string> = { red: RED, amber: AMBER, green: GREEN }
+
+/**
+ * The pack workflows of the core GPU regression at their newest run: read from the
+ * regression lane index, so it does not depend on the frontend publisher's files.
+ */
+function PacksCard({ packs }: { packs: PackLanesState }) {
+    const label = 'Packs on GPU'
+    const dot = 'bg-sky-600 dark:bg-sky-400'
+    if (packs.pending) return <StatCard label={label} value="…" dotClass={dot} valueClass={NEUTRAL} />
+    const newest = newestPackRun(packs.lanes)
+    if (!newest) {
+        const sub = packs.failure ? FAILED : 'no GPU pack runs published yet'
+        return <StatCard label={label} value="—" sub={sub} dotClass={dot} valueClass={NEUTRAL} />
+    }
+    const rows = packs.lanes.flatMap((lane) => lane.workflows.map((pw) => ({ lane, pw })))
+    const workflows = rows.map(({ pw }) => pw)
+    const states = rows.map(({ lane, pw }) => cellState(pw.cell, pw.wf, lane.info.goldens))
+    const passing = states.filter((s) => s.verdict === 'pass').length
+    const names = packNames(workflows).join(', ')
+    const when = formatRelative(newest.entry.t)
+    // Commit and age first, like the other cards: the pack names are long and truncate.
+    return (
+        <StatCard
+            label={label}
+            value={`${passing}/${rows.length}`}
+            sub={
+                <Sub title={`core ${newest.entry.c} · ${when} · ${names}`}>
+                    core <ShaLink href={coreCommitUrl(newest.entry.c)} sha={newest.entry.c} /> · {when} · {names}
+                </Sub>
+            }
+            dotClass={dot}
+            valueClass={TONE_CLASS[packTone(states, workflows)]}
+        />
+    )
+}
+
+/**
+ * The four headline numbers: main at HEAD, perf at the latest baseline, the custom-nodes
+ * gate, and the pack workflows on the GPU regression.
+ */
 export const FrontendKpis: React.FC<{
     ci: ReturnType<typeof useFrontendCi>
     perf: ReturnType<typeof useFrontendPerf>
     gate: ReturnType<typeof useFrontendGate>
-}> = ({ ci, perf, gate }) => (
-    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    packs: PackLanesState
+}> = ({ ci, perf, gate, packs }) => (
+    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MainCard query={ci} />
         <PerfCard query={perf} />
         <GateCard query={gate} />
+        <PacksCard packs={packs} />
     </div>
 )

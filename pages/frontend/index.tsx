@@ -3,8 +3,9 @@ import { CiMainTable } from '../../components/frontend/CiMainTable'
 import { CustomNodesSection } from '../../components/frontend/CustomNodesSection'
 import { FreshnessBanner } from '../../components/frontend/FreshnessBanner'
 import { FrontendKpis } from '../../components/frontend/FrontendKpis'
+import { PacksOnGpu } from '../../components/frontend/PacksOnGpu'
 import { PerfSection } from '../../components/frontend/PerfSection'
-import { useFrontendCi, useFrontendGate, useFrontendPerf } from '../../src/frontend/client'
+import { useFrontendCi, useFrontendGate, useFrontendPerf, usePackLanes } from '../../src/frontend/client'
 
 /** A head's updated_ts for the banner: unknown while loading or failed, null when not published. */
 const freshness = (q: {
@@ -17,6 +18,8 @@ export default function FrontendPage() {
     const ci = useFrontendCi()
     const perf = useFrontendPerf()
     const gate = useFrontendGate()
+    // The core GPU regression's pack workflows: from the regression lane index, not the frontend files.
+    const packs = usePackLanes()
 
     return (
         <div className="pt-8">
@@ -26,12 +29,13 @@ export default function FrontendPage() {
                 </h1>
                 <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
                     ComfyUI_frontend on main: every CI workflow per commit, perf baselines per scenario judged by
-                    the frontend repo{"'"}s own regression rule, and the daily custom-nodes gate against the pinned
-                    ComfyUI core. Read-only, from static files the worker repo publishes twice an hour.
+                    the frontend repo{"'"}s own regression rule, the daily custom-nodes gate against the pinned
+                    ComfyUI core, and the same custom-node packs run on real GPUs by the core regression. Read-only,
+                    from static files the worker repo publishes.
                 </p>
             </div>
 
-            <FrontendKpis ci={ci} perf={perf} gate={gate} />
+            <FrontendKpis ci={ci} perf={perf} gate={gate} packs={packs} />
             <FreshnessBanner
                 heads={[
                     { label: 'CI', ts: freshness(ci) },
@@ -42,6 +46,7 @@ export default function FrontendPage() {
             <CiMainTable query={ci} />
             <PerfSection query={perf} />
             <CustomNodesSection query={gate} />
+            <PacksOnGpu packs={packs} />
         </div>
     )
 }

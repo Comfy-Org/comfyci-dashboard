@@ -3,9 +3,19 @@
 // regression results: no token, no GitHub API calls from the browser. Set
 // NEXT_PUBLIC_FRONTEND_BASE to another prefix (e.g. /fixtures/frontend for the checked-in
 // samples, or a GCS URL once results move there).
-import { useQueries } from '@tanstack/react-query'
-import { COMFY_REPO, checked, staticQueryFor, useStaticJsonFor } from '../regression/client'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import {
+    COMFY_REPO,
+    checked,
+    fetchJsonOrNull,
+    staticQueryFor,
+    useIndexHeads,
+    useLanes,
+    useStaticJsonFor,
+} from '../regression/client'
 import { isCommitSha, isPathSegment, isPrNumber } from '../regression/validate'
+import { PACK_REGISTRY_URL, laneRefs, packLane } from './packs'
+import type { PackLane, PackRegistry } from './packs'
 import type { CiHead, CiShard, GateHead, PerfHead, PerfShard } from './types'
 
 export const FRONTEND_BASE =
@@ -42,6 +52,75 @@ export const useFrontendPerfShards = (months: string[]) =>
 
 export const useFrontendGate = () =>
     useStaticJsonFor<GateHead>(FRONTEND_BASE, 'frontend-gate', () => 'ci/custom-nodes.json', true)
+
+// ── Custom-node packs on the GPU regression ──
+// These read the regression lane index, not the frontend/ files, so the packs card and
+// section stay up even while the frontend publisher is behind.
+
+/** The worker's pack registry (the commit each pack is installed at); null when the file is absent. */
+export const usePackRegistry = () =>
+    useQuery({
+        queryKey: ['pack-registry', PACK_REGISTRY_URL],
+        queryFn: () => fetchJsonOrNull<PackRegistry>(PACK_REGISTRY_URL),
+        staleTime: 5 * 60_000,
+    })
+
+/** A fetch that failed, with what it was for and a retry, for the shared error renderer. */
+export interface FetchFailure {
+    what: string
+    error: unknown
+    busy: boolean
+    retry: () => void
+}
+
+export interface PackLanesState {
+    /** True until lanes.json and every listed lane's index head have been fetched. */
+    pending: boolean
+    /** The first fetch that failed, or null. Lanes that did load are still in `lanes`. */
+    failure: FetchFailure | null
+    /** Lanes whose newest run has at least one pack workflow, in lanes.json order. */
+    lanes: PackLane[]
+}
+
+/**
+ * Every lane whose newest run has pack workflows, from lanes.json and each lane's index
+ * head on its branch. Pending until every head is known, so a lane cannot flicker in.
+ */
+export function usePackLanes(): PackLanesState {
+    const lanesQuery = useLanes()
+    const refs = laneRefs(lanesQuery.data)
+    const heads = useIndexHeads(refs.map((r) => ({ branch: r.branch, lane: r.id })))
+    const pending = lanesQuery.isPending || heads.some((q) => q.isPending)
+    const lanes = refs.flatMap((ref, i) => {
+        const lane = packLane(ref, heads[i]?.data)
+        return lane ? [lane] : []
+    })
+    let failure: FetchFailure | null = null
+    if (lanesQuery.isError) {
+        failure = {
+            what: 'the lane index',
+            error: lanesQuery.error,
+            busy: lanesQuery.isFetching,
+            retry: () => {
+                lanesQuery.refetch()
+            },
+        }
+    } else {
+        const i = heads.findIndex((q) => q.isError)
+        if (i !== -1) {
+            const failed = heads[i]
+            failure = {
+                what: `the run index of ${refs[i].info.label}`,
+                error: failed.error,
+                busy: failed.isFetching,
+                retry: () => {
+                    failed.refetch()
+                },
+            }
+        }
+    }
+    return { pending, failure, lanes }
+}
 
 // ── Links ──
 // The published JSON is only as trustworthy as the publisher, so every value that goes
