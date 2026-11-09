@@ -1,4 +1,4 @@
-import { WorkflowStatusButton } from './StatusButton'
+import { StatusPill, WorkflowStatusButton } from './StatusButton'
 import type { DriftKind, RegressionVerdict } from '../src/regression/types'
 
 // 'accepted' exists only on the client: a failing output whose sha matches the lane's
@@ -50,8 +50,11 @@ export const RegressionBadge: React.FC<{
     /** Failing but bit-identical to the previous failing run: nothing changed at this commit. */
     inherited?: boolean
     onClick?: () => void
-}> = ({ verdict, inherited, onClick }) => {
+    /** A non-interactive span with a native title, for a badge inside a link. */
+    plain?: boolean
+}> = ({ verdict, inherited, onClick, plain = false }) => {
     const meta = badgeMeta(verdict, inherited)
+    if (plain) return <StatusPill text={meta.text} status={meta.status} title={meta.title} />
     return (
         <WorkflowStatusButton text={meta.text} status={meta.status} title={meta.title} onClick={onClick} />
     )

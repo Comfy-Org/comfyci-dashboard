@@ -43,6 +43,24 @@ const STATUS_STYLES: Record<string, { label: string; classes: string; dot: strin
     },
 };
 
+/**
+ * The same pill as a plain span with a native title: for a badge inside a link, where a
+ * button would nest interactive content and a Tooltip per cell would add up.
+ */
+export const StatusPill: React.FC<{ text: string; status: string; title?: string }> = ({ text, status, title }) => {
+    const style = STATUS_STYLES[status] || STATUS_STYLES.default;
+
+    return (
+        <span
+            title={title ?? style.label}
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition-colors ${style.classes}`}
+        >
+            <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+            {text}
+        </span>
+    );
+};
+
 export const WorkflowStatusButton: React.FC<OSStatusButtonProps> = ({ text, status, title, onClick }) => {
     const style = STATUS_STYLES[status] || STATUS_STYLES.default;
 
