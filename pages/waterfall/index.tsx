@@ -158,8 +158,8 @@ function labelOf(columns: LaneColumn[], id: string): string {
 function DisagreeMarker({ row, columns }: { row: Row; columns: LaneColumn[] }) {
     const lanes = (ids: string[]) => ids.map((id) => labelOf(columns, id)).join(', ')
     return (
-        // Open, it takes a line of its own under the sha so the cell does not widen.
-        <details className="group open:basis-full">
+        // On its own line under the commit, so opening it wraps inside the column instead of widening it.
+        <details className="group mt-1">
             <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 rounded border border-amber-500/40 px-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
                 lanes differ
                 <FiChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" aria-hidden />
@@ -204,7 +204,6 @@ function CommitCell({ branch, row, columns }: { branch: string; row: Row; column
                         #{pr}
                     </a>
                 )}
-                {row.disagreements.length > 0 && <DisagreeMarker row={row} columns={columns} />}
             </div>
             {row.m?.s && (
                 <div className={`mt-1 truncate text-xs ${commitWidth} ${dim}`} title={row.m.s}>
@@ -215,6 +214,7 @@ function CommitCell({ branch, row, columns }: { branch: string; row: Row; column
                 {row.m?.a && <span className="hidden sm:inline">{row.m.a}</span>}
                 <span title={`${row.committed ? 'committed' : 'tested'} ${when}`}>{formatRelative(row.ts)}</span>
             </div>
+            {row.disagreements.length > 0 && <DisagreeMarker row={row} columns={columns} />}
         </td>
     )
 }
