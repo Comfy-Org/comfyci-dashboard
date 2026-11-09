@@ -2,19 +2,19 @@ import { Spinner } from 'flowbite-react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
-import { FetchError } from '../../components/FetchError'
-import { FirstBadLine } from '../../components/FirstBadLine'
-import { HistoryTable } from '../../components/HistoryTable'
-import { ClearableLabel } from '../../components/Labels/ClearableLabel'
-import { LaneMissingNotice, LaneSelect } from '../../components/LaneSelect'
-import { Pager } from '../../components/Pager'
-import { RegressionBadge, displayVerdict } from '../../components/RegressionBadge'
-import { Sparkline } from '../../components/Sparkline'
-import { StaleBanner } from '../../components/StaleBanner'
-import { StatCard } from '../../components/StatsDashboard'
-import { Surface, SectionTitle } from '../../components/Surface'
-import { cellState, driftStartedHere, driftedCell, scoredCell } from '../../components/WorkflowDots'
-import { WorkflowStrip } from '../../components/WorkflowStrip'
+import { FetchError } from '../components/FetchError'
+import { FirstBadLine } from '../components/FirstBadLine'
+import { HistoryTable } from '../components/HistoryTable'
+import { ClearableLabel } from '../components/Labels/ClearableLabel'
+import { LaneMissingNotice, LaneSelect } from '../components/LaneSelect'
+import { Pager } from '../components/Pager'
+import { RegressionBadge, displayVerdict } from '../components/RegressionBadge'
+import { Sparkline } from '../components/Sparkline'
+import { StaleBanner } from '../components/StaleBanner'
+import { StatCard } from '../components/StatsDashboard'
+import { Surface, SectionTitle } from '../components/Surface'
+import { cellState, driftStartedHere, driftedCell, scoredCell } from '../components/WorkflowDots'
+import { WorkflowStrip } from '../components/WorkflowStrip'
 import {
     resolveLane,
     useIndexHead,
@@ -22,8 +22,8 @@ import {
     useLanes,
     useLatestPointer,
     useRegressionSummary,
-} from '../../src/regression/client'
-import type { LaneRef } from '../../src/regression/client'
+} from '../src/regression/client'
+import type { LaneRef } from '../src/regression/client'
 import type {
     FirstBad,
     IndexEntry,
@@ -31,10 +31,10 @@ import type {
     LaneInfo,
     LatestPointer,
     RegressionSummary,
-} from '../../src/regression/types'
-import { commitPageHref, isBranchName, isCommitSha } from '../../src/regression/validate'
-import { orderWorkflows, slotOf } from '../../src/regression/workflows'
-import { formatRelative, monthKey } from '../../utils/time'
+} from '../src/regression/types'
+import { commitPageHref, isBranchName, isCommitSha } from '../src/regression/validate'
+import { orderWorkflows, slotOf } from '../src/regression/workflows'
+import { formatRelative, monthKey } from '../utils/time'
 
 const DEFAULT_BRANCH = 'master'
 const PAGE_SIZE = 25
