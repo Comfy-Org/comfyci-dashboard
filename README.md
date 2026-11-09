@@ -25,7 +25,7 @@ Lanes come from `regression/index/lanes.json`, which the worker builds from its 
 | `/` with `branch=<number>/merge` | `/legacy` | Links ComfyUI's `pullrequest-ci-run.yml` posted on PRs |
 | `/waterfall` with `repo` | `/legacy/waterfall` | The old waterfall's only param |
 
-Commit pages under `/regression/<branch>/<sha>` are never redirected. A branch of the form `<number>/merge` typed into All Results or the Waterfall is written to the URL like any other, so that URL opens the legacy page when reloaded or shared; no regression lane runs on such a branch.
+Commit pages under `/regression/<branch>/<sha>` are never redirected. A branch of the form `<number>/merge` typed into All Results is written to the URL like any other, so that URL opens the legacy page when reloaded or shared; no regression lane runs on such a branch. The Waterfall keeps such a URL and shows no runs.
 
 ## Getting Started
 
