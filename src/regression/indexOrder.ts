@@ -14,17 +14,18 @@ export function byIndexOrder(a: IndexEntry, b: IndexEntry): number {
     return entryTime(b) - entryTime(a) || (a.c < b.c ? 1 : a.c > b.c ? -1 : 0)
 }
 
-/** Head entries plus any loaded monthly shards, de-duplicated, in index order. */
+/**
+ * Head entries plus any loaded monthly shards, one per commit, in index order. The worker
+ * keeps a single entry per commit per lane and moves its run time forward on a re-test, so
+ * when a cached head and a fresh shard disagree about a commit, the later run wins.
+ */
 export function mergeIndexEntries(head: IndexEntry[], shards: IndexEntry[]): IndexEntry[] {
-    const seen = new Set<string>()
-    const merged: IndexEntry[] = []
+    const byCommit = new Map<string, IndexEntry>()
     for (const e of [...head, ...shards]) {
-        const key = `${e.c}:${e.t}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        merged.push(e)
+        const kept = byCommit.get(e.c)
+        if (!kept || e.t > kept.t) byCommit.set(e.c, e)
     }
-    return merged.sort(byIndexOrder)
+    return [...byCommit.values()].sort(byIndexOrder)
 }
 
 /**
