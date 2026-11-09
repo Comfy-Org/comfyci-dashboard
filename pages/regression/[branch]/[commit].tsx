@@ -524,28 +524,35 @@ export default function RegressionCommitPage() {
     const laneIds = ready ? orderedLaneIds(lanesQuery.data) : []
     const laneHeads = useIndexHeads(laneIds.map((id) => ({ branch: branch ?? '', lane: id })))
     const listedOn = laneIds.filter((id, i) => laneHeads[i]?.data?.entries.some((e) => e.c === commit))
-    // Where the commit sits in time: its entry on this lane, else the run summary, else
-    // another lane's entry for it.
+    // Where the commit sits in time, as the index sorts it: its entry on this lane, else its
+    // commit time from the run summary or any lane's entry, else the summary's run time,
+    // else another lane's entry. Older summaries carry no commit_meta; the index files their
+    // runs by the commit time the worker looked up for them, which can be well before the run.
     const headEntry = head?.entries.find((e) => e.c === commit)
-    const otherEntry = laneHeads
+    const otherEntries = laneHeads
         .map((q) => q.data?.entries.find((e) => e.c === commit))
-        .find((e): e is IndexEntry => e != null)
+        .filter((e): e is IndexEntry => e != null)
+    const commitCt =
+        summary?.commit_meta?.committed_ts || otherEntries.find((e) => e.m?.ct)?.m?.ct || null
     const commitTs = headEntry
         ? entryTime(headEntry)
-        : summary
-        ? summary.commit_meta?.committed_ts || summary.run_ts
-        : otherEntry
-        ? entryTime(otherEntry)
-        : null
+        : commitCt ?? summary?.run_ts ?? (otherEntries[0] ? entryTime(otherEntries[0]) : null)
     // A head lists only the lane's newest runs: for a commit at or past where it stops, load
     // the months around it so Newer, Older and the drift details still find its neighbours.
+    // A run this lane published that its head leaves out is filed at or past that point even
+    // when its run time is newer; with no commit time to go on, look from that point back.
     const windowStart = headWindowStart(head)
+    const filedPastHead = !!summary && !headEntry && commitCt == null
     const olderMonths =
-        head && windowStart != null && commitTs != null && commitTs <= windowStart
-            ? shardsAround(head, commitTs)
+        head && windowStart != null && commitTs != null && (commitTs <= windowStart || filedPastHead)
+            ? shardsAround(head, Math.min(commitTs, windowStart))
             : NO_MONTHS
     const shardQueries = useIndexShards(branch ?? '', lane.id, ready ? olderMonths : NO_MONTHS)
     const runs = mergeIndexEntries(head?.entries ?? [], shardQueries.flatMap((q) => q.data?.entries ?? []))
+    const entry = runs.find((e) => e.c === commit)
+    // The other lanes' pills place the commit by the time this lane's entry files it under once
+    // that has loaded; a run time alone does not say where their heads would file it.
+    const pillTs = entry ? entryTime(entry) : filedPastHead ? null : commitTs
     const runsUnknown = !headQuery.isSuccess
         ? "The lane's run index is not loaded"
         : shardQueries.some((q) => q.isPending)
@@ -645,7 +652,7 @@ export default function RegressionCommitPage() {
                 hrefFor={(id) => commitPageHref(branch, commit, id)}
                 statusFor={(id, lanes) =>
                     (id === lane.id ? current : undefined) ??
-                    laneVerdict(laneHeads[laneIds.indexOf(id)], commit, commitTs, lanes.lanes[id])
+                    laneVerdict(laneHeads[laneIds.indexOf(id)], commit, pillTs, lanes.lanes[id])
                 }
                 caption
             />
@@ -710,7 +717,6 @@ export default function RegressionCommitPage() {
         )
     }
 
-    const entry = runs.find((e) => e.c === commit)
     const goldens = lane.info?.goldens
     const workflows = Object.values(summary.workflows).sort((a, b) =>
         a.workflow_id.localeCompare(b.workflow_id)
