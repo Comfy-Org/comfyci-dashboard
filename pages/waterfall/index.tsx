@@ -1,5 +1,6 @@
 import { Spinner } from 'flowbite-react'
 import Link from 'next/link'
+import { FiChevronDown } from 'react-icons/fi'
 import { useRouter } from 'next/router'
 import React from 'react'
 import { FetchError } from '../../components/FetchError'
@@ -22,13 +23,17 @@ import { formatRelative } from '../../utils/time'
 const PAGE_SIZE = 30
 const dim = 'text-ash-500 dark:text-smoke-800'
 const quiet = 'text-[11px] text-ash-500/70 dark:text-smoke-800/70'
+// The Commit column's text width: narrow on a phone so the first lane's verdict is on screen.
+const commitWidth = 'max-w-[9rem] sm:max-w-[22rem]'
+// Cell padding, tighter on a phone.
+const cellPad = 'px-3 py-3 sm:px-4'
 
 /** One lane's column: its registry entry, its index head on the branch, and its slot order. */
 interface LaneColumn {
     id: string
     info: LaneInfo
-    /** "primary", "retired" or "legacy", else "lane". */
-    tag: string
+    /** "primary", "retired" or "legacy"; none for an ordinary lane, as on the lane pills. */
+    tag: ReturnType<typeof laneTag>
     status: 'loading' | 'error' | 'none' | 'ok'
     head: IndexHead | null
     /** Sort time of the oldest run the head lists when it lists only the newest of the lane's runs, else null. */
@@ -149,20 +154,25 @@ function labelOf(columns: LaneColumn[], id: string): string {
     return columns.find((c) => c.id === id)?.info.label ?? id
 }
 
+/** "lanes differ", opening (by click, tap or keyboard) to which workflow passes where and fails where. */
 function DisagreeMarker({ row, columns }: { row: Row; columns: LaneColumn[] }) {
     const lanes = (ids: string[]) => ids.map((id) => labelOf(columns, id)).join(', ')
-    const title = [
-        'Lanes disagree at this commit:',
-        ...row.disagreements.map((d) => `${d.wf}: passes on ${lanes(d.green)}; fails on ${lanes(d.red)}`),
-    ].join('\n')
     return (
-        <span
-            title={title}
-            aria-label={title}
-            className="inline-flex items-center rounded border border-amber-500/40 px-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400"
-        >
-            lanes differ
-        </span>
+        // Open, it takes a line of its own under the sha so the cell does not widen.
+        <details className="group open:basis-full">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 rounded border border-amber-500/40 px-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
+                lanes differ
+                <FiChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <ul className={`mt-1 space-y-0.5 text-[11px] text-amber-700 dark:text-amber-400 ${commitWidth}`}>
+                {row.disagreements.map((d) => (
+                    <li key={d.wf}>
+                        <span className="font-mono">{d.wf}</span> passes on {lanes(d.green)}; fails on{' '}
+                        {lanes(d.red)}
+                    </li>
+                ))}
+            </ul>
+        </details>
     )
 }
 
@@ -172,7 +182,7 @@ function CommitCell({ branch, row, columns }: { branch: string; row: Row; column
     const pr = row.m && isPrNumber(row.m.pr) ? row.m.pr : null
     const when = new Date(row.ts * 1000).toLocaleString()
     return (
-        <td className="px-4 py-3 align-top">
+        <td className={`${cellPad} align-top`}>
             <div className="flex flex-wrap items-center gap-2">
                 {laneId ? (
                     <Link
@@ -189,7 +199,7 @@ function CommitCell({ branch, row, columns }: { branch: string; row: Row; column
                         href={`${COMFY_REPO}/pull/${pr}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[11px] text-ash-500 hover:text-electric hover:underline"
+                        className="text-[11px] text-ash-500 hover:text-sapphire-700 dark:hover:text-electric hover:underline"
                     >
                         #{pr}
                     </a>
@@ -197,12 +207,12 @@ function CommitCell({ branch, row, columns }: { branch: string; row: Row; column
                 {row.disagreements.length > 0 && <DisagreeMarker row={row} columns={columns} />}
             </div>
             {row.m?.s && (
-                <div className={`mt-1 max-w-[16rem] truncate text-xs sm:max-w-[22rem] ${dim}`} title={row.m.s}>
+                <div className={`mt-1 truncate text-xs ${commitWidth} ${dim}`} title={row.m.s}>
                     {row.m.s}
                 </div>
             )}
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-ash-500/80 dark:text-smoke-800/80">
-                {row.m?.a && <span>{row.m.a}</span>}
+                {row.m?.a && <span className="hidden sm:inline">{row.m.a}</span>}
                 <span title={`${row.committed ? 'committed' : 'tested'} ${when}`}>{formatRelative(row.ts)}</span>
             </div>
         </td>
@@ -254,15 +264,18 @@ function LaneHeader({ col, branch }: { col: LaneColumn; branch: string }) {
     const note =
         col.status === 'none' ? `no runs on ${branch}` : col.status === 'error' ? 'index not loaded' : null
     return (
-        <th className="px-4 py-3 align-bottom font-semibold">
-            <div className="flex max-w-[12rem] flex-col gap-0.5">
+        <th className={`${cellPad} align-bottom font-semibold`}>
+            <div className="flex max-w-[9rem] flex-col gap-0.5 sm:max-w-[12rem]">
                 <span className="normal-case tracking-normal text-xs text-charcoal-800 dark:text-smoke-100">
                     {col.info.label}
                 </span>
                 <span className="text-[10px]">
                     {col.tag}
                     {col.workflows.length > 0 && (
-                        <span className="normal-case tracking-normal"> · {col.workflows.length} workflows</span>
+                        <span className="normal-case tracking-normal">
+                            {col.tag && ' · '}
+                            {col.workflows.length} workflows
+                        </span>
                     )}
                 </span>
                 {note && <span className="normal-case tracking-normal text-[10px] font-normal">{note}</span>}
@@ -337,7 +350,7 @@ export default function WaterfallPage() {
               return {
                   id,
                   info,
-                  tag: laneTag(lanes, id) ?? 'lane',
+                  tag: laneTag(lanes, id),
                   status: !q || q.isPending ? 'loading' : q.isError ? 'error' : head ? 'ok' : 'none',
                   head,
                   windowStart: headWindowStart(head),
@@ -367,6 +380,16 @@ export default function WaterfallPage() {
     const allLoading = columns.length > 0 && columns.every((c) => c.status === 'loading')
     const anyLoading = columns.some((c) => c.status === 'loading')
     const historyHref = branch === DEFAULT_BRANCH ? '/' : { pathname: '/', query: { branch } }
+    // One failed lane must not blank the page: its error sits above whatever the others show.
+    const fetchErrors = failed.map(({ col, query }) => (
+        <FetchError
+            key={col.id}
+            what={`the run index of ${col.info.label}`}
+            error={query.error}
+            busy={query.isFetching}
+            onRetry={() => query.refetch()}
+        />
+    ))
 
     let body: React.ReactNode
     if (!router.isReady || lanesQuery.isPending || allLoading) {
@@ -394,43 +417,32 @@ export default function WaterfallPage() {
             </Surface>
         )
     } else if (rows.length === 0 && !anyLoading) {
+        // Only the lanes whose index loaded can say there are no runs; when none loaded,
+        // the errors are all there is to show.
         body = (
             <>
-                {failed.map(({ col, query }) => (
-                    <FetchError
-                        key={col.id}
-                        what={`the run index of ${col.info.label}`}
-                        error={query.error}
-                        busy={query.isFetching}
-                        onRetry={() => query.refetch()}
-                    />
-                ))}
-                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
-                    <span className="text-lg font-semibold">No runs on this branch</span>
-                    <span className={`text-sm ${dim}`}>
-                        {columns.length === 0 ? (
-                            'No lanes are published yet.'
-                        ) : (
-                            <>
-                                No lane has published a run for <span className="font-mono">{branch}</span>.
-                            </>
-                        )}
-                    </span>
-                </Surface>
+                {fetchErrors}
+                {failed.length < columns.length || columns.length === 0 ? (
+                    <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                        <span className="text-lg font-semibold">No runs on this branch</span>
+                        <span className={`text-sm ${dim}`}>
+                            {columns.length === 0 ? (
+                                'No lanes are published yet.'
+                            ) : (
+                                <>
+                                    {failed.length > 0 ? 'No lane whose index loaded' : 'No lane'} has published a
+                                    run for <span className="font-mono">{branch}</span>.
+                                </>
+                            )}
+                        </span>
+                    </Surface>
+                ) : null}
             </>
         )
     } else {
         body = (
             <>
-                {failed.map(({ col, query }) => (
-                    <FetchError
-                        key={col.id}
-                        what={`the run index of ${col.info.label}`}
-                        error={query.error}
-                        busy={query.isFetching}
-                        onRetry={() => query.refetch()}
-                    />
-                ))}
+                {fetchErrors}
                 <div className="mb-4">
                     <FilterBar
                         value={filter}
@@ -445,7 +457,7 @@ export default function WaterfallPage() {
                         <table className="w-max min-w-full text-left text-sm">
                             <thead>
                                 <tr className="border-b border-smoke-300 dark:border-charcoal-400/60 text-[11px] uppercase tracking-wider text-ash-500 dark:text-smoke-800">
-                                    <th className="px-4 py-3 align-bottom font-semibold">Commit</th>
+                                    <th className={`${cellPad} align-bottom font-semibold`}>Commit</th>
                                     {columns.map((col) => (
                                         <LaneHeader key={col.id} col={col} branch={branch} />
                                     ))}
@@ -470,7 +482,7 @@ export default function WaterfallPage() {
                                     >
                                         <CommitCell branch={branch} row={row} columns={columns} />
                                         {columns.map((col) => (
-                                            <td key={col.id} className="px-4 py-3 align-top">
+                                            <td key={col.id} className={`${cellPad} align-top`}>
                                                 <LaneCell branch={branch} row={row} col={col} />
                                             </td>
                                         ))}
@@ -485,7 +497,7 @@ export default function WaterfallPage() {
                             <span className="font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
                                 lanes differ
                             </span>{' '}
-                            a workflow passes on one lane and fails on another at that commit; hover it for which.
+                            a workflow passes on one lane and fails on another at that commit; open it for which.
                         </span>
                         {truncated && (
                             <span className={`text-[11px] ${dim}`}>
