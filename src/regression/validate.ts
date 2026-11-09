@@ -52,6 +52,9 @@ export const isPathSegment = (value: unknown): value is string =>
 export const shellQuote = (value: string) =>
     /^[A-Za-z0-9._/-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
 
+/** Element id of a workflow's card on the commit page, for #fragment links to it. */
+export const workflowAnchor = (workflowId: string) => `wf-${encodeURIComponent(workflowId)}`
+
 /** Link to a commit's regression page, each segment encoded so it stays one path segment. */
 export const commitPageHref = (branch: string, commit: string, laneId: string) =>
     `/regression/${encodeURIComponent(branch)}/${encodeURIComponent(commit)}?lane=${encodeURIComponent(laneId)}`

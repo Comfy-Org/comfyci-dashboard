@@ -2,10 +2,10 @@ import Link from 'next/link'
 import React from 'react'
 import { RegressionBadge, changedHere, overallDisplay } from './RegressionBadge'
 import { Surface } from './Surface'
-import { DotLegend, WorkflowDots, cellState, cellStates } from './WorkflowDots'
+import { DotLegend, WorkflowDots, cellStates, entryStates } from './WorkflowDots'
 import { COMFY_REPO } from '../src/regression/client'
 import type { IndexEntry, LaneInfo } from '../src/regression/types'
-import { commitPageHref, isCommitSha, isPrNumber } from '../src/regression/validate'
+import { commitPageHref, isCommitSha, isPrNumber, workflowAnchor } from '../src/regression/validate'
 import { formatRelative } from '../utils/time'
 
 function HistoryRow({
@@ -24,7 +24,7 @@ function HistoryRow({
     const cells = cellStates(entry, workflows, goldens)
     // Overall and the row tint read every cell the run has, not just the lane's slots,
     // so an id outside the fixed order can never soften a run's verdict.
-    const states = Object.keys(entry.w).map((wf) => cellState(entry.w[wf], wf, goldens))
+    const states = entryStates(entry, goldens)
     const overall = overallDisplay(entry.o, states, entry.infra)
     const changed = states.some(changedHere)
     const infraIds = Object.keys(entry.w).filter((wf) => entry.w[wf].v === 'infra_error')
@@ -136,7 +136,7 @@ function HistoryRow({
                             <li key={a.wf} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                 <RegressionBadge verdict={a.state.verdict} inherited={a.state.inherited} />
                                 <Link
-                                    href={commitHref}
+                                    href={`${commitHref}#${workflowAnchor(a.wf)}`}
                                     className="min-w-0 break-all font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100 hover:underline"
                                 >
                                     {a.wf}

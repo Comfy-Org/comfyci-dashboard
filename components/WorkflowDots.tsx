@@ -1,7 +1,7 @@
 import React from 'react'
 import { DOT_SHAPES, Dot } from './Dot'
 import type { DotSpec } from './Dot'
-import { badgeMeta, displayVerdict } from './RegressionBadge'
+import { badgeMeta, displayVerdict, overallDisplay } from './RegressionBadge'
 import type { DisplayState } from './RegressionBadge'
 import type { IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
 import { formatGb } from '../utils/format'
@@ -18,6 +18,17 @@ export interface CellState {
 /** Display state of a raw index cell against its lane golden. */
 export const cellState = (cell: IndexWorkflowCell, wf: string, goldens?: LaneInfo['goldens']) =>
     displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+
+/** Display state of every cell the run has, not just the lane's fixed slots. */
+export const entryStates = (entry: IndexEntry, goldens?: LaneInfo['goldens']): DisplayState[] =>
+    Object.keys(entry.w).map((wf) => cellState(entry.w[wf], wf, goldens))
+
+/**
+ * Overall badge for one run, as the history table's Overall column shows it. It reads every
+ * cell the run has, so an id outside the lane's fixed order can never soften the verdict.
+ */
+export const entryOverall = (entry: IndexEntry, goldens?: LaneInfo['goldens']): DisplayState =>
+    overallDisplay(entry.o, entryStates(entry, goldens), entry.infra)
 
 /** The run's cells in the lane's fixed order; a workflow absent from the run yields nulls. */
 export function cellStates(

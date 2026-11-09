@@ -36,3 +36,10 @@ export function useBranchParam(): [string, (branch: string) => void] {
 
     return [branch, setBranch]
 }
+
+/** Link to All Results on a lane and branch, spelled the way the page writes its own URL (master left out). */
+export function allResultsHref(laneId: string, branch: string = DEFAULT_BRANCH): string {
+    const params = new URLSearchParams({ lane: laneId })
+    if (branch !== DEFAULT_BRANCH) params.set('branch', branch)
+    return `/?${params.toString()}`
+}

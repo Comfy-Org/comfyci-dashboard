@@ -5,10 +5,10 @@ import React from 'react'
 import { FetchError } from '../../components/FetchError'
 import { ClearableLabel } from '../../components/Labels/ClearableLabel'
 import { Pager } from '../../components/Pager'
-import { RegressionBadge, badgeMeta, changedHere, overallDisplay } from '../../components/RegressionBadge'
+import { RegressionBadge, badgeMeta, changedHere } from '../../components/RegressionBadge'
 import type { DisplayState } from '../../components/RegressionBadge'
 import { Surface } from '../../components/Surface'
-import { DotLegend, WorkflowDots, cellState, cellStates } from '../../components/WorkflowDots'
+import { DotLegend, WorkflowDots, cellState, cellStates, entryOverall } from '../../components/WorkflowDots'
 import type { CellState } from '../../components/WorkflowDots'
 import { COMFY_REPO, useIndexHeads, useLanes } from '../../src/regression/client'
 import { DEFAULT_BRANCH, useBranchParam } from '../../src/regression/branchParam'
@@ -74,15 +74,10 @@ function tone(state: DisplayState): 'green' | 'red' | null {
     return null
 }
 
-/** Overall badge for one lane's run, by the same rule as the history table's Overall column. */
+/** One lane's run of a commit, its overall badge by the same rule as the history table. */
 function laneRun(entry: IndexEntry, col: LaneColumn): LaneRun {
     const goldens = col.info.goldens
-    const states = Object.keys(entry.w).map((wf) => cellState(entry.w[wf], wf, goldens))
-    return {
-        entry,
-        overall: overallDisplay(entry.o, states, entry.infra),
-        cells: cellStates(entry, col.workflows, goldens),
-    }
+    return { entry, overall: entryOverall(entry, goldens), cells: cellStates(entry, col.workflows, goldens) }
 }
 
 /**
