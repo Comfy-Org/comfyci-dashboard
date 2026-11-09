@@ -13,6 +13,7 @@ import type {
     PackImportStatus,
     RegressionVerdict,
 } from '../regression/types'
+import { allResultsHref } from '../regression/branchParam'
 import { isCommitSha } from '../regression/validate'
 
 /** The worker's pack registry: one fixed public file, never a URL built from data. */
@@ -208,5 +209,5 @@ export function laneCaption(info: LaneInfo): string {
     return parts.join(' · ')
 }
 
-/** The Regression tab on this lane. */
-export const lanePageHref = (laneId: string) => `/regression?lane=${encodeURIComponent(laneId)}`
+/** All Results on this lane, on the branch its runs are read from (left out when master). */
+export const lanePageHref = (laneId: string, branch: string) => allResultsHref(laneId, branch)

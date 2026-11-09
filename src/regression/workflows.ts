@@ -4,7 +4,7 @@ import type { IndexEntry, LaneInfo } from './types'
 export const compareWorkflowIds = (a: string, b: string) => a.localeCompare(b)
 
 /**
- * Slot order for a lane, shared by every per-workflow surface on the history page.
+ * Slot order for a lane, shared by every per-workflow surface on All Results and the Waterfall.
  *
  * Blessed workflows come first, in the order lanes.json lists their goldens: the worker
  * merges into that file rather than rebuilding it, so the order is stable across index

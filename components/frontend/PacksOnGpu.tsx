@@ -320,10 +320,10 @@ export const PacksOnGpu: React.FC<{ packs: PackLanesState }> = ({ packs }) => {
                 {lanes.map((lane) => (
                     <Link
                         key={lane.id}
-                        href={lanePageHref(lane.id)}
+                        href={lanePageHref(lane.id, lane.branch)}
                         className="text-sapphire-700 dark:text-electric hover:underline"
                     >
-                        All lanes and workflows on the Regression tab
+                        All lanes and workflows on All Results
                         {lanes.length > 1 ? ` (${lane.info.label})` : ''} →
                     </Link>
                 ))}
