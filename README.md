@@ -1,6 +1,31 @@
 # ComfyCI Dashboard
 
-Built using NextJS.
+Built using NextJS. Deployed at https://ci.comfy.org.
+
+## Pages
+
+Every page except Legacy reads static JSON that the worker repo ([Comfy-Org/comfyci-runpod-worker](https://github.com/Comfy-Org/comfyci-runpod-worker)) publishes on its `results` branch; `NEXT_PUBLIC_REGRESSION_BASE` overrides the regression base URL.
+
+- **All Results** (`/`): the GPU regression history of one lane on one branch, with freshness, open regressions, the per-workflow strip, drift sparklines and the paged run history. Lane pills switch lanes (primary first, retired last). `?lane=` and `?branch=` are kept in the URL (master is left out), so a view can be shared. The lookup opens a commit by its full SHA, or by a 7+ character prefix that matches exactly one loaded run.
+- **Waterfall** (`/waterfall`): every tested commit across lanes, one column per lane, read from each lane's index head. It can filter to commits where any lane is red, or where a workflow passes on one lane and fails on another. `?branch=` works as on All Results.
+- **Commit page** (`/regression/<branch>/<sha>?lane=<id>`): one lane's run of one commit, with per-workflow metrics, outputs, diffs and the re-bless commands. It has newer and older links and a lane switcher that shows which lanes ran the commit. Without `?lane=` it shows the primary lane. PULSE PR comments link here, so this URL does not change. Each workflow card has a `#wf-<workflow id>` anchor.
+- **Frontend** (`/frontend`): see [Frontend tab](#frontend-tab).
+- **Legacy** (`/legacy`, `/legacy/waterfall`, `/workflow/<id>`): the api.comfy.org results of the old comfy-action CI, which stopped reporting on 2026-06-22. Read-only; linked from the footer.
+
+Lanes come from `regression/index/lanes.json`, which the worker builds from its [`manifest/lanes.json`](https://github.com/Comfy-Org/comfyci-runpod-worker/blob/main/manifest/lanes.json). A lane with cadence `retired` runs no more but keeps its history readable: it is listed last, gets a neutral note instead of a staleness warning, and offers no re-bless commands.
+
+### Redirects
+
+`next.config.js` keeps old links working. The redirects are temporary (307) and keep the query string.
+
+| From | To | Why |
+|---|---|---|
+| `/regression` | `/` | The Regression tab became All Results |
+| `/` with `repo`, `os`, `workflowName` or `commitId` | `/legacy` | Filters of the old All Results page |
+| `/` with `branch=<number>/merge` | `/legacy` | Links ComfyUI's `pullrequest-ci-run.yml` posted on PRs |
+| `/waterfall` with `repo` | `/legacy/waterfall` | The old waterfall's only param |
+
+Commit pages under `/regression/<branch>/<sha>` are never redirected.
 
 ## Getting Started
 
