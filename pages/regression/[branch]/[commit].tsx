@@ -651,7 +651,7 @@ export default function RegressionCommitPage() {
                         {lane.info && <> · {lane.info.label}</>}
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                     {meta && <CommitMetaChip meta={meta} />}
                     <a
                         href={`${COMFY_REPO}/commit/${commit}`}

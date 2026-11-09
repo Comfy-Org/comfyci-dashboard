@@ -11,7 +11,7 @@ const linkClass = 'hover:text-electric hover:underline'
  * and parents come from the published results, so only a PR number and full SHAs are linked.
  */
 export const CommitMetaChip: React.FC<{ meta: CommitMeta }> = ({ meta }) => (
-    <div className="flex max-w-xl flex-col gap-0.5 rounded-xl border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 text-xs">
+    <div className="flex min-w-0 max-w-full flex-col gap-0.5 rounded-xl sm:max-w-xl border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 text-xs">
         <div
             className="truncate font-medium text-charcoal-800 dark:text-smoke-100"
             title={meta.subject}
