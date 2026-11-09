@@ -15,7 +15,6 @@ import { Pager } from '../../components/Pager'
 import analytic from '../../global/mixpanel'
 import { useGetBranch, useGetGitcommit, WorkflowRunStatus } from '../../src/api/generated'
 import { DEFAULT_REPO, LEGACY_REPOS } from '../../src/legacy/repos'
-import { isCommitSha } from '../../src/regression/validate'
 import { formatDuration } from '../../utils/format'
 import { StatusToColor, StatusToHumanText } from '../workflow/[id]'
 
@@ -142,7 +141,7 @@ function GitCommitsList() {
                 </a>
             </div>
 
-            <LegacyBanner />
+            <LegacyBanner page="results" />
 
             {/* Dashboard */}
             <StatsDashboard results={jobResults} />
@@ -430,15 +429,6 @@ function GitCommitsList() {
                                                         Action
                                                         <FiExternalLink className="h-3 w-3" />
                                                     </Link>
-                                                    {/* Regression runs are keyed by a full sha: the probe rows' short ids would only reach "Not a valid commit". */}
-                                                    {result.branch_name && isCommitSha(result.commit_hash) && (
-                                                        <Link
-                                                            href={`/regression/${encodeURIComponent(result.branch_name)}/${encodeURIComponent(result.commit_hash)}`}
-                                                            className="text-[11px] font-medium text-ash-500 hover:text-electric hover:underline"
-                                                        >
-                                                            Regression
-                                                        </Link>
-                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

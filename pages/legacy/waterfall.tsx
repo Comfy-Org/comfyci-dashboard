@@ -94,7 +94,7 @@ function GitCommitsList() {
                 </a>
             </div>
 
-            <LegacyBanner />
+            <LegacyBanner page="waterfall" />
 
             {/* Filters */}
             <Surface className="mb-6 p-4">

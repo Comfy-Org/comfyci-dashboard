@@ -16,6 +16,9 @@ const Footer = () => (
             <Link href="/legacy" className={footerLink}>
                 Legacy CI results (until {LEGACY_CI_LAST_REPORT_TEXT})
             </Link>
+            <Link href="/legacy/waterfall" className={footerLink}>
+                Legacy waterfall
+            </Link>
             <a href={WORKER_REPO} target="_blank" rel="noopener noreferrer" className={footerLink}>
                 Worker repo
             </a>
