@@ -7,10 +7,10 @@ Built using NextJS. Deployed at https://ci.comfy.org.
 Every page except Legacy reads static JSON that the worker repo ([Comfy-Org/comfyci-runpod-worker](https://github.com/Comfy-Org/comfyci-runpod-worker)) publishes on its `results` branch; `NEXT_PUBLIC_REGRESSION_BASE` overrides the regression base URL.
 
 - **All Results** (`/`): the GPU regression history of one lane on one branch, with freshness, open regressions, the per-workflow strip, drift sparklines and the paged run history. Lane pills switch lanes (primary first, retired last). `?lane=` and `?branch=` are kept in the URL (master is left out), so a view can be shared. The lookup opens a commit by its full SHA, or by a 7+ character prefix that matches exactly one loaded run.
-- **Waterfall** (`/waterfall`): every tested commit across lanes, one column per lane, read from each lane's index head. It can filter to commits where any lane is red, or where a workflow passes on one lane and fails on another. `?branch=` works as on All Results.
+- **Waterfall** (`/waterfall`): every tested commit across lanes, one column per lane, read from each lane's index head. It can filter to commits where any lane is red, or where a workflow passes on one lane and fails on another. `?branch=` works as on All Results; the filter and page are kept as `?show=red|disagree` and `?page=<n>`. A head lists only a lane's newest 500 runs, so for a commit older than that a column shows "—" (unknown) rather than "not run".
 - **Commit page** (`/regression/<branch>/<sha>?lane=<id>`): one lane's run of one commit, with per-workflow metrics, outputs, diffs and the re-bless commands. It has newer and older links and a lane switcher that shows which lanes ran the commit. Without `?lane=` it shows the primary lane. PULSE PR comments link here, so this URL does not change. Each workflow card has a `#wf-<workflow id>` anchor.
 - **Frontend** (`/frontend`): see [Frontend tab](#frontend-tab).
-- **Legacy** (`/legacy`, `/legacy/waterfall`, `/workflow/<id>`): the api.comfy.org results of the old comfy-action CI, which stopped reporting on 2026-06-22. Read-only; linked from the footer.
+- **Legacy** (`/legacy`, `/legacy/waterfall`, `/workflow/<id>`): the api.comfy.org results of the old comfy-action CI, which stopped reporting on 2026-06-22. Read-only; linked from the footer, and the two legacy pages link each other.
 
 Lanes come from `regression/index/lanes.json`, which the worker builds from its [`manifest/lanes.json`](https://github.com/Comfy-Org/comfyci-runpod-worker/blob/main/manifest/lanes.json). A lane with cadence `retired` runs no more but keeps its history readable: it is listed last, gets a neutral note instead of a staleness warning, and offers no re-bless commands.
 
@@ -25,7 +25,7 @@ Lanes come from `regression/index/lanes.json`, which the worker builds from its 
 | `/` with `branch=<number>/merge` | `/legacy` | Links ComfyUI's `pullrequest-ci-run.yml` posted on PRs |
 | `/waterfall` with `repo` | `/legacy/waterfall` | The old waterfall's only param |
 
-Commit pages under `/regression/<branch>/<sha>` are never redirected.
+Commit pages under `/regression/<branch>/<sha>` are never redirected. A branch of the form `<number>/merge` typed into All Results or the Waterfall is written to the URL like any other, so that URL opens the legacy page when reloaded or shared; no regression lane runs on such a branch.
 
 ## Getting Started
 
