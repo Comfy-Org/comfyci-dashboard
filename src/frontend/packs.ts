@@ -198,6 +198,7 @@ const CADENCE_TEXT: Record<string, string> = {
     'per-commit': 'every core commit',
     nightly: 'nightly',
     weekly: 'weekly',
+    retired: 'retired, history only',
 }
 
 /** "<lane label> · every core commit · <GPU>", the GPU only when the label does not already name it. */

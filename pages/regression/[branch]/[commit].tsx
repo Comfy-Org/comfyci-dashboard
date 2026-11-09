@@ -25,6 +25,7 @@ import {
     useRunRecord,
 } from '../../../src/regression/client'
 import type { LaneRef } from '../../../src/regression/client'
+import { isRetiredLane } from '../../../src/regression/lanes'
 import type {
     CommitMeta,
     IndexWorkflowCell,
@@ -105,6 +106,7 @@ function WorkflowCard({
     result,
     state,
     summaryEnv,
+    retired,
 }: {
     branch: string
     commit: string
@@ -112,6 +114,8 @@ function WorkflowCard({
     result: WorkflowRegressionResult
     state: DisplayState
     summaryEnv?: RunEnv | null
+    /** The lane no longer runs, so there is nothing to re-bless on it. */
+    retired: boolean
 }) {
     const { data: run } = useRunRecord(branch, commit, result.workflow_id, lane)
     const { data: prevRun } = useRunRecord(
@@ -261,7 +265,7 @@ function WorkflowCard({
                 />
             </div>
 
-            {state.verdict === 'fail' && (
+            {state.verdict === 'fail' && !retired && (
                 <ReblessCallout workflowId={result.workflow_id} commit={commit} lane={lane} />
             )}
 
@@ -523,6 +527,7 @@ export default function RegressionCommitPage() {
                         result={wf}
                         state={states[wf.workflow_id]}
                         summaryEnv={summary.env}
+                        retired={isRetiredLane(lane.info)}
                     />
                 ))}
             </div>

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import React from 'react'
 import { BrandSelect } from './Inputs'
+import { laneRunsCaption } from '../src/regression/lanes'
 import type { LanesIndex } from '../src/regression/types'
 
 /** Pill links to the same page on each published lane; hidden with fewer than two lanes. */
@@ -64,7 +65,7 @@ export const LaneSelect: React.FC<{
             </BrandSelect>
             {current && (
                 <span className="text-[11px] text-ash-500 dark:text-smoke-800">
-                    {current.cadence} · {current.blocking ? 'blocking' : 'informational'}
+                    {laneRunsCaption(current)}
                 </span>
             )}
         </div>

@@ -44,8 +44,9 @@ export const ReblessCallout: React.FC<{ workflowId: string; commit: string; lane
     lane,
 }) => {
     const safe = isCommitSha(commit) && isWorkflowId(workflowId) && isLaneId(lane.id)
-    const laneFlag = lane.layout === 2 ? ` -f lane=${shellQuote(lane.id)}` : ''
-    const base = `gh workflow run golden-baseline.yml --repo ${WORKER_REPO} -f ref=${shellQuote(commit)} -f workflows=${shellQuote(workflowId)}${laneFlag}`
+    // Every lane is named, the layout-1 one included: the workflow's empty default means
+    // "the lane of the default prefix", which stops being the primary once the primary moves.
+    const base = `gh workflow run golden-baseline.yml --repo ${WORKER_REPO} -f ref=${shellQuote(commit)} -f workflows=${shellQuote(workflowId)} -f lane=${shellQuote(lane.id)}`
     return (
         <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 text-xs">
             <div className="font-semibold text-amber-600 dark:text-amber-400">Is this drift intended?</div>
