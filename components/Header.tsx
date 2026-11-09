@@ -75,7 +75,7 @@ export const Header = () => {
 
     return (
         <header className="sticky top-0 z-40 border-b border-smoke-300 dark:border-charcoal-400/60 bg-smoke-100/80 dark:bg-ink-900/80 backdrop-blur-md">
-            <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
                 <Link href="/" className="shrink-0">
                     <ComfyMark />
                 </Link>
@@ -84,7 +84,7 @@ export const Header = () => {
                     instead of pushing the page wider than the viewport. */}
                 <nav
                     ref={navRef}
-                    className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 p-1"
+                    className="flex min-w-0 max-w-full items-center gap-0.5 overflow-x-auto rounded-full sm:gap-1 border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 p-1"
                 >
                     {NAV.map(({ href, label }) => {
                         const active = isActive(href)
@@ -94,7 +94,7 @@ export const Header = () => {
                                 href={href}
                                 aria-current={active ? "page" : undefined}
                                 className={[
-                                    "whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
+                                    "whitespace-nowrap rounded-full px-2 py-1.5 text-xs font-semibold transition-colors sm:px-4 sm:text-sm",
                                     active
                                         ? "bg-electric text-ink-900 shadow-sm"
                                         : "text-ash-500 dark:text-smoke-700 hover:text-charcoal-800 dark:hover:text-white",
