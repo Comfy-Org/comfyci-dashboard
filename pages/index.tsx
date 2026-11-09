@@ -2,461 +2,709 @@ import { Spinner } from 'flowbite-react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
-import { CiFilter } from 'react-icons/ci'
-import { FiExternalLink } from 'react-icons/fi'
+import { FetchError } from '../components/FetchError'
+import { FirstBadLine } from '../components/FirstBadLine'
+import { HistoryTable } from '../components/HistoryTable'
 import { ClearableLabel } from '../components/Labels/ClearableLabel'
-import { LegacyBanner } from '../components/LegacyBanner'
-import { NoOutput, SafeThumb } from '../components/SafeThumb'
-import { WorkflowStatusButton } from '../components/StatusButton'
-import { StatsDashboard } from '../components/StatsDashboard'
-import { Surface, SectionTitle } from '../components/Surface'
-import { BrandSelect } from '../components/Inputs'
+import { LaneMissingNotice, LanePills } from '../components/LaneSelect'
+import type { LanePillStatus } from '../components/LaneSelect'
 import { Pager } from '../components/Pager'
-import analytic from '../global/mixpanel'
-import { useGetBranch, useGetGitcommit, WorkflowRunStatus } from '../src/api/generated'
-import { DEFAULT_REPO, LEGACY_REPOS } from '../src/legacy/repos'
-import { formatDuration } from '../utils/format'
-import { StatusToColor, StatusToHumanText } from './workflow/[id]'
+import { RegressionBadge, displayVerdict } from '../components/RegressionBadge'
+import { Sparkline } from '../components/Sparkline'
+import { StaleBanner } from '../components/StaleBanner'
+import { StatCard } from '../components/StatsDashboard'
+import { Surface, SectionTitle } from '../components/Surface'
+import { cellState, driftStartedHere, driftedCell, scoredCell } from '../components/WorkflowDots'
+import { WorkflowStrip } from '../components/WorkflowStrip'
+import {
+    resolveLane,
+    useIndexHead,
+    useIndexShards,
+    useLanes,
+    useLatestPointer,
+    useRegressionSummary,
+} from '../src/regression/client'
+import type { LaneRef } from '../src/regression/client'
+import { DEFAULT_BRANCH, useBranchParam } from '../src/regression/branchParam'
+import { entryTime, mergeIndexEntries } from '../src/regression/indexOrder'
+import { laneLatest } from '../src/regression/lanes'
+import type {
+    FirstBad,
+    IndexEntry,
+    IndexHead,
+    LaneInfo,
+    LanesIndex,
+    LatestPointer,
+    RegressionSummary,
+} from '../src/regression/types'
+import { commitPageHref, isBranchName, isCommitSha, isShaPrefix } from '../src/regression/validate'
+import { orderWorkflows, slotOf } from '../src/regression/workflows'
+import { formatRelative, monthKey } from '../utils/time'
 
-// Status filter options. The /gitcommit API has no status param, so this filters
-// the rows already loaded for the current page (see note rendered below the table).
-const STATUS_OPTIONS: { label: string; value: string }[] = [
-    { label: 'Failed', value: WorkflowRunStatus.WorkflowRunStatusFailed },
-    { label: 'In Progress', value: WorkflowRunStatus.WorkflowRunStatusStarted },
-    { label: 'Success', value: WorkflowRunStatus.WorkflowRunStatusCompleted },
-]
+const PAGE_SIZE = 25
+const NO_MONTHS: string[] = []
+const KPI_WINDOW = 30
+const SPARK_WINDOW = 60
 
-function GitCommitsList() {
-    const [currentPage, setCurrentPage] = React.useState(1)
-    const onPageChange = (page: number) => setCurrentPage(page)
-    const router = useRouter();
-    const [filterOS, setFilterOS] = React.useState<string>('Select OS')
-    const [repoFilter, setRepoFilter] = React.useState<string>(DEFAULT_REPO)
-    const [branchFilter, setBranchFilter] = React.useState<string>('Select Branch')
-    const [commitId, setCommitId] = React.useState<string>('')
-    const [workflowNameFilter, setWorkflowFilter] = React.useState<string>('')
-    // Client-side only (the API has no status param) — not synced to the URL.
-    const [statusFilter, setStatusFilter] = React.useState<string>('')
+/** The next monthly shard to fetch, or null when everything the index counts is loaded. */
+function nextShard(head: IndexHead, entries: IndexEntry[], loaded: string[]): string | null {
+    if (entries.length === 0 || entries.length >= head.count) return null
+    // The worker files each run under the month of its commit time.
+    const oldest = monthKey(entryTime(entries[entries.length - 1]))
+    const shards = [...head.shards].sort().reverse()
+    // The head index may end part-way through a month: fetch that month's full shard first.
+    if (shards.includes(oldest) && !loaded.includes(oldest)) return oldest
+    return shards.find((s) => s < oldest && !loaded.includes(s)) ?? null
+}
 
-    const prevFilters = React.useRef({ filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage });
+function EmptyState({ branch }: { branch: string }) {
+    return (
+        <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+            <span className="text-lg font-semibold">No regression runs yet</span>
+            <span className="text-sm text-ash-500 dark:text-smoke-800">
+                No runs have been published for branch <span className="font-mono">{branch}</span>.
+            </span>
+        </Surface>
+    )
+}
 
-    const { data: filteredJobResults, isLoading, isError } = useGetGitcommit({
-        // The blank <option> and its placeholder label both mean "no filter".
-        operatingSystem: filterOS === '' || filterOS === 'Select OS' ? undefined : filterOS,
-        commitId: commitId == '' ? undefined : commitId,
-        workflowName: workflowNameFilter == '' ? undefined : workflowNameFilter,
-        branch: branchFilter === '' || branchFilter === 'Select Branch' ? undefined : branchFilter,
-        page: currentPage,
-        repoName: repoFilter,
-        pageSize: 30,
-    })
+// Pre-index fallback: the latest pointer plus its summary, as the page showed before
+// the worker published a run index.
+function LatestRunCard({
+    branch,
+    laneId,
+    latest,
+    summary,
+}: {
+    branch: string
+    laneId: string
+    latest: LatestPointer
+    summary: RegressionSummary | null | undefined
+}) {
+    const href = commitPageHref(branch, latest.commit, laneId)
+    const workflows = summary
+        ? Object.values(summary.workflows).sort((a, b) => a.workflow_id.localeCompare(b.workflow_id))
+        : []
+    return (
+        <Surface className="p-5">
+            <SectionTitle>Latest run on {branch}</SectionTitle>
+            <div className="mt-2 flex items-center gap-3">
+                <Link
+                    href={href}
+                    className="font-mono text-lg font-bold text-sapphire-700 dark:text-electric hover:underline"
+                >
+                    {latest.commit.slice(0, 12)}
+                </Link>
+                {summary && <RegressionBadge verdict={summary.overall === 'pass' ? 'pass' : 'fail'} />}
+            </div>
+            <p className="mt-1 text-xs text-ash-500 dark:text-smoke-800">
+                {new Date(latest.run_ts * 1000).toLocaleString()}
+            </p>
+            {workflows.length > 0 && (
+                <div className="mt-5 flex flex-wrap gap-4">
+                    {workflows.map((wf) => (
+                        <Link
+                            key={wf.workflow_id}
+                            href={href}
+                            className="flex items-center gap-2 rounded-xl border border-smoke-300 dark:border-charcoal-400/60 px-4 py-3 hover:border-electric/50"
+                        >
+                            <span className="font-semibold text-charcoal-800 dark:text-smoke-100">
+                                {wf.workflow_id}
+                            </span>
+                            <RegressionBadge verdict={wf.verdict} />
+                        </Link>
+                    ))}
+                </div>
+            )}
+        </Surface>
+    )
+}
 
-    // Update the URL parameters when filters change
-    React.useEffect(() => {
-        // Only update the URL if the filters have actually changed
-        if (filterOS !== prevFilters.current.filterOS ||
-            repoFilter !== prevFilters.current.repoFilter ||
-            branchFilter !== prevFilters.current.branchFilter ||
-            commitId !== prevFilters.current.commitId ||
-            workflowNameFilter !== prevFilters.current.workflowNameFilter ||
-            currentPage !== prevFilters.current.currentPage) {
-            const query = {
-                os: filterOS || undefined,
-                repo: repoFilter || undefined,
-                branch: branchFilter || undefined,
-                commitId: commitId || undefined,
-                workflowName: workflowNameFilter || undefined,
-                page: currentPage.toString(),
-            };
-            router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+function FirstBadBanner({
+    wf,
+    fb,
+    branch,
+    laneId,
+    entries,
+}: {
+    wf: string
+    fb: FirstBad
+    branch: string
+    laneId: string
+    entries: IndexEntry[]
+}) {
+    const subject = entries.find((e) => e.c === fb.commit)?.m?.s
+    return (
+        <div
+            role="alert"
+            className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-red-500/30 bg-red-500/[0.06] px-4 py-2.5 text-sm text-red-600 dark:text-red-400"
+        >
+            <span className="break-all font-mono font-semibold">{wf}</span>
+            <span>failing since</span>
+            <FirstBadLine
+                fb={fb}
+                branch={branch}
+                laneId={laneId}
+                subject={subject}
+                dimClass="text-red-600/80 dark:text-red-400/80"
+            />
+        </div>
+    )
+}
 
-            // Update the ref with the new values
-            prevFilters.current = { filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage };
+function LaneKpis({
+    entries,
+    workflows,
+    goldens,
+}: {
+    entries: IndexEntry[]
+    workflows: string[]
+    goldens?: LaneInfo['goldens']
+}) {
+    const window = entries.slice(0, KPI_WINDOW)
+    const scored = window.filter((e) => !e.infra)
+    const passed = scored.filter((e) => e.o === 'pass').length
+    const infra = window.length - scored.length
+    const latest = entries[0]
+    // Open: still drifting in the latest run (inherited or not), or unable to execute at all.
+    const open = latest
+        ? workflows.flatMap((wf) => {
+              const cell = latest.w[wf]
+              if (!cell) return []
+              const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+              return verdict === 'fail' || verdict === 'execution_error' ? [{ wf, verdict }] : []
+          })
+        : []
+    return (
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard
+                label="Pass Rate"
+                value={scored.length ? `${((passed / scored.length) * 100).toFixed(0)}%` : '—'}
+                sub={`${passed} of ${scored.length} scored${infra ? ` · ${infra} infra` : ''} · last ${window.length} runs`}
+                dotClass="bg-emerald-600 dark:bg-emerald-400"
+                valueClass="text-emerald-600 dark:text-emerald-400"
+            />
+            <StatCard
+                label="Open Regressions"
+                value={open.length}
+                sub={
+                    open.length
+                        ? open
+                              .map((o) => (o.verdict === 'execution_error' ? `${o.wf} (execution error)` : o.wf))
+                              .join(', ')
+                        : 'no drift in the latest run'
+                }
+                dotClass="bg-red-600 dark:bg-red-400"
+                valueClass={
+                    open.length ? 'text-red-600 dark:text-red-400' : 'text-charcoal-400 dark:text-smoke-500'
+                }
+            />
+            <StatCard
+                label="Last Run"
+                value={latest ? formatRelative(latest.t) : '—'}
+                sub={latest ? new Date(latest.t * 1000).toLocaleString() : undefined}
+                dotClass="bg-sapphire-700 dark:bg-electric"
+                valueClass="text-sapphire-700 dark:text-electric"
+            />
+        </div>
+    )
+}
+
+/** A workflow's drift history over the sparkline window. */
+interface DriftRow {
+    wf: string
+    /** Runs in the window that compared this workflow against its golden (or failed trying). */
+    scored: number
+    /** Runs in the window where the output was not bit-identical to the golden. */
+    offGolden: number
+    /** Newest run in the window where a drift or execution failure began. */
+    startedAt: IndexEntry | null
+    /** Display state in the newest run that has this workflow. */
+    now: ReturnType<typeof cellState> | null
+    /** Latest verdict is still failing: sorts first. */
+    open: boolean
+}
+
+function Trends({
+    branch,
+    laneId,
+    entries,
+    workflows,
+    goldens,
+}: {
+    branch: string
+    laneId: string
+    entries: IndexEntry[]
+    workflows: string[]
+    goldens?: LaneInfo['goldens']
+}) {
+    const window = entries.slice(0, SPARK_WINDOW)
+    if (window.length < 2) return null
+
+    // Three buckets: drifted (a card), stable (compared at least once, never moved), and
+    // "without comparison" (only infra errors or missing baselines, so nothing is known).
+    const drifted: DriftRow[] = []
+    const stable: string[] = []
+    const unscored: string[] = []
+    let unseen = 0
+    for (const wf of workflows) {
+        const runs = window.filter((e) => e.w[wf])
+        if (runs.length === 0) {
+            unseen += 1
+            continue
         }
-    }, [filterOS, repoFilter, branchFilter, commitId, workflowNameFilter, currentPage, router, prevFilters]);
-
-    // Initialize filters from URL on component mount or when URL changes
-    React.useEffect(() => {
-        const query = router.query;
-        // Ensure all parameters are treated as strings, even if they are arrays
-        setFilterOS(typeof query.os === 'string' ? query.os : query.os?.[0] || 'Select OS');
-        setRepoFilter(typeof query.repo === 'string' ? query.repo : query.repo?.[0] || DEFAULT_REPO);
-        setBranchFilter(typeof query.branch === 'string' ? query.branch : query.branch?.[0] || 'Select Branch');
-        setCommitId(typeof query.commitId === 'string' ? query.commitId : query.commitId?.[0] || '');
-        setWorkflowFilter(typeof query.workflowName === 'string' ? query.workflowName : query.workflowName?.[0] || '');
-        setCurrentPage(parseInt(typeof query.page === 'string' ? query.page : query.page?.[0] || '1'));
-    }, [router.query]);
-
-    const { data: branchesQueryResults, isLoading: loadingBranchs } = useGetBranch({
-        repo_name: repoFilter
-    })
-
-    React.useEffect(() => {
-        const repo = router.query.repo;
-        if (typeof repo === 'string') {
-            setRepoFilter(repo);
+        const states = runs.map((e) => cellState(e.w[wf], wf, goldens))
+        const offGolden = runs.filter((e, i) => driftedCell(e.w[wf], states[i])).length
+        const scored = states.filter(scoredCell).length
+        if (offGolden > 0) {
+            const now = states[0]
+            drifted.push({
+                wf,
+                scored,
+                offGolden,
+                startedAt: runs.find((e) => driftStartedHere(e.w[wf])) ?? null,
+                now,
+                open: now.verdict === 'fail' || now.verdict === 'execution_error',
+            })
+        } else if (scored > 0) {
+            stable.push(wf)
+        } else {
+            unscored.push(wf)
         }
-    }, [router.query.repo]);
-
-    const jobResults = filteredJobResults?.jobResults ?? []
-    const visibleResults = statusFilter
-        ? jobResults.filter((r) => r.status === statusFilter)
-        : jobResults
-    const hasActiveFilters =
-        (filterOS !== '' && filterOS !== 'Select OS') ||
-        (branchFilter !== '' && branchFilter !== 'Select Branch') ||
-        commitId !== '' ||
-        workflowNameFilter !== '' ||
-        statusFilter !== ''
-
-    const clearAll = () => {
-        setFilterOS('Select OS')
-        setBranchFilter('Select Branch')
-        setCommitId('')
-        setWorkflowFilter('')
-        setStatusFilter('')
-        setCurrentPage(1)
     }
+    drifted.sort((a, b) => Number(b.open) - Number(a.open) || slotOf(workflows, a.wf) - slotOf(workflows, b.wf))
+
+    const summary = [
+        drifted.length === 0 && unscored.length === 0 && unseen === 0
+            ? `All ${stable.length} stable`
+            : `${stable.length} stable`,
+        unscored.length ? `${unscored.length} without comparison` : null,
+        unseen ? `${unseen} not run in this window` : null,
+    ]
+        .filter(Boolean)
+        .join(' · ')
+
+    return (
+        <Surface className="mb-6 p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <SectionTitle>Drift vs golden</SectionTitle>
+                <span className="text-[11px] text-ash-500 dark:text-smoke-800">
+                    mean MSE per run · last {window.length} runs, oldest to newest · {drifted.length} of{' '}
+                    {workflows.length} drifted
+                </span>
+            </div>
+            {drifted.length > 0 && (
+                <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {drifted.map((row) => {
+                        const points = window
+                            .map((e) => ({ commit: e.c, ts: e.t, value: e.w[row.wf]?.mse ?? null }))
+                            .reverse()
+                        const latest = points[points.length - 1]?.value
+                        return (
+                            <div
+                                key={row.wf}
+                                className="rounded-xl border border-smoke-300 dark:border-charcoal-400/60 px-4 py-3"
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <span
+                                        className="min-w-0 truncate font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100"
+                                        title={row.wf}
+                                    >
+                                        {row.wf}
+                                    </span>
+                                    <span className="flex shrink-0 items-center gap-2">
+                                        {row.now && (
+                                            <RegressionBadge verdict={row.now.verdict} inherited={row.now.inherited} />
+                                        )}
+                                        <span className="font-mono text-xs tabular-nums text-ash-500 dark:text-smoke-800">
+                                            {latest == null ? '—' : latest.toFixed(3)}
+                                        </span>
+                                    </span>
+                                </div>
+                                <div className="mt-2">
+                                    <Sparkline points={points} />
+                                </div>
+                                <div className="mt-1 text-[11px] text-ash-500 dark:text-smoke-800">
+                                    {row.offGolden} of {row.scored} runs off golden
+                                    {row.startedAt && (
+                                        <>
+                                            {' · '}
+                                            {row.startedAt.w[row.wf].v === 'execution_error' ? 'failed at' : 'drift at'}{' '}
+                                            <Link
+                                                href={commitPageHref(branch, row.startedAt.c, laneId)}
+                                                className="font-mono hover:underline"
+                                            >
+                                                {row.startedAt.c.slice(0, 7)}
+                                            </Link>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+            <p
+                className="mt-3 truncate text-xs text-ash-500 dark:text-smoke-800"
+                title={[
+                    stable.length ? `stable: ${stable.join(', ')}` : null,
+                    unscored.length ? `without comparison: ${unscored.join(', ')}` : null,
+                ]
+                    .filter(Boolean)
+                    .join('\n')}
+            >
+                {summary}
+                {stable.length > 0 && (
+                    <>
+                        {' · '}
+                        <span className="font-mono">{stable.join(', ')}</span>
+                    </>
+                )}
+            </p>
+        </Surface>
+    )
+}
+
+/**
+ * One lane's runs on one branch: the index head plus the monthly shards "Load older" asked
+ * for, merged newest first. The page holds it so the commit lookup searches the same runs
+ * the history shows. Nothing is fetched while `branch` is undefined.
+ */
+function useLaneEntries(branch: string | undefined, laneId: string, olderMonths: string[]) {
+    const headQuery = useIndexHead(branch, laneId)
+    const shardQueries = useIndexShards(branch ?? '', laneId, branch ? olderMonths : NO_MONTHS)
+    const entries = mergeIndexEntries(
+        headQuery.data?.entries ?? [],
+        shardQueries.flatMap((q) => q.data?.entries ?? [])
+    )
+    return { headQuery, shardQueries, entries }
+}
+
+type LaneEntries = ReturnType<typeof useLaneEntries>
+
+// Keyed on branch + lane by the page so paging resets with them.
+function LaneHistory({
+    branch,
+    lane,
+    runs,
+    olderMonths,
+    onLoadOlder,
+}: {
+    branch: string
+    lane: LaneRef & { info?: LaneInfo }
+    runs: LaneEntries
+    olderMonths: string[]
+    onLoadOlder: (month: string) => void
+}) {
+    const { headQuery, shardQueries, entries } = runs
+    const head = headQuery.data
+    // Only a null result (the file is not published) means the index is absent; a failed
+    // fetch is reported as such below, never read as "nothing published".
+    const headMissing = headQuery.isSuccess && head == null
+    // Pre-index fallback, only consulted once the index is known to be absent.
+    const latestQuery = useLatestPointer(headMissing ? branch : undefined, lane)
+    const latest = latestQuery.data
+    const summaryQuery = useRegressionSummary(headMissing ? branch : undefined, latest?.commit, lane)
+
+    const [page, setPage] = React.useState(1)
+    const loadingOlder = shardQueries.some((q) => q.isPending)
+    const failedShard = shardQueries.find((q) => q.isError)
+
+    const goldens = lane.info?.goldens
+    const workflows = orderWorkflows(entries, goldens)
+    const next = head ? nextShard(head, entries, olderMonths) : null
+    const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
+    const pageEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+    if (
+        headQuery.isPending ||
+        (headMissing && (latestQuery.isPending || (latest && summaryQuery.isPending)))
+    ) {
+        return (
+            <div className="flex justify-center items-center py-24">
+                <Spinner size="xl" />
+            </div>
+        )
+    }
+
+    if (headQuery.isError) {
+        return (
+            <FetchError
+                what="the run index"
+                error={headQuery.error}
+                busy={headQuery.isFetching}
+                onRetry={() => headQuery.refetch()}
+            />
+        )
+    }
+
+    if (!head) {
+        if (latestQuery.isError) {
+            return (
+                <FetchError
+                    what="the latest run pointer"
+                    error={latestQuery.error}
+                    busy={latestQuery.isFetching}
+                    onRetry={() => latestQuery.refetch()}
+                />
+            )
+        }
+        // lanes.json names each lane's branches: one it leaves out has no runs on this lane.
+        const unlistedBranch = lane.info && !lane.info.branches?.[branch] ? branch : undefined
+        return (
+            <>
+                <StaleBanner
+                    latestTs={latest?.run_ts ?? null}
+                    indexMissing
+                    cadence={lane.info?.cadence}
+                    unlistedBranch={unlistedBranch}
+                />
+                {summaryQuery.isError && (
+                    <FetchError
+                        what="the latest run summary"
+                        error={summaryQuery.error}
+                        busy={summaryQuery.isFetching}
+                        onRetry={() => summaryQuery.refetch()}
+                    />
+                )}
+                {latest ? (
+                    <LatestRunCard
+                        branch={branch}
+                        laneId={lane.id}
+                        latest={latest}
+                        summary={summaryQuery.data}
+                    />
+                ) : (
+                    <EmptyState branch={branch} />
+                )}
+            </>
+        )
+    }
+
+    const firstBad = Object.entries(head.first_bad ?? {})
+        .sort(([a], [b]) => slotOf(workflows, a) - slotOf(workflows, b) || a.localeCompare(b))
+        .filter(([wf]) => {
+            // A passing or re-blessed latest run closes the chain even before the worker
+            // prunes it from first_bad; any other verdict leaves the regression open.
+            const cell = entries[0]?.w[wf]
+            if (!cell) return true
+            const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+            return verdict !== 'pass' && verdict !== 'accepted'
+        })
+    const openChains: Record<string, FirstBad> = Object.fromEntries(firstBad)
+
+    return (
+        <>
+            <StaleBanner
+                latestTs={head.latest?.run_ts ?? entries[0]?.t ?? null}
+                indexMissing={false}
+                cadence={lane.info?.cadence}
+            />
+            {firstBad.map(([wf, fb]) => (
+                <FirstBadBanner key={wf} wf={wf} fb={fb} branch={branch} laneId={lane.id} entries={entries} />
+            ))}
+            <LaneKpis entries={entries} workflows={workflows} goldens={goldens} />
+            <WorkflowStrip
+                branch={branch}
+                laneId={lane.id}
+                entries={entries}
+                workflows={workflows}
+                goldens={goldens}
+                firstBad={openChains}
+            />
+            <Trends branch={branch} laneId={lane.id} entries={entries} workflows={workflows} goldens={goldens} />
+            {entries.length === 0 ? (
+                <EmptyState branch={branch} />
+            ) : (
+                <>
+                    <HistoryTable
+                        branch={branch}
+                        laneId={lane.id}
+                        entries={pageEntries}
+                        workflows={workflows}
+                        goldens={goldens}
+                    />
+                    {failedShard && (
+                        <FetchError
+                            className="mt-6"
+                            what="older runs"
+                            error={failedShard.error}
+                            busy={failedShard.isFetching}
+                            onRetry={() => failedShard.refetch()}
+                        />
+                    )}
+                    <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+                        <Pager currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                        {next && (
+                            <button
+                                type="button"
+                                disabled={loadingOlder}
+                                onClick={() => onLoadOlder(next)}
+                                className="inline-flex h-9 items-center rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 text-sm font-medium text-charcoal-800 dark:text-smoke-200 transition hover:border-electric/50 dark:hover:text-electric disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                {loadingOlder ? 'Loading…' : `Load older (${head.count - entries.length} more)`}
+                            </button>
+                        )}
+                    </div>
+                    <p className="mt-2 text-center text-[11px] text-ash-500 dark:text-smoke-800">
+                        Showing {entries.length} of {head.count} runs · index generated{' '}
+                        {formatRelative(head.generated_ts)}
+                    </p>
+                </>
+            )}
+        </>
+    )
+}
+
+
+/** The commit the lookup opens, or why it cannot open one yet. */
+type CommitLookup = { sha: string; hint: string | null } | { sha: null; hint: string | null }
+
+/**
+ * A full SHA opens as typed. A 7 to 39 character prefix opens when exactly one loaded run
+ * on this lane starts with it; the hint says what matched or what is missing.
+ */
+function resolveLookup(input: string, entries: IndexEntry[]): CommitLookup {
+    const query = input.trim().toLowerCase()
+    if (!query) return { sha: null, hint: null }
+    if (isCommitSha(query)) return { sha: query, hint: null }
+    if (!isShaPrefix(query)) return { sha: null, hint: 'Enter at least 7 hex characters of a commit SHA' }
+    const matches = Array.from(new Set(entries.filter((e) => e.c.startsWith(query)).map((e) => e.c)))
+    if (matches.length === 1) return { sha: matches[0], hint: matches[0].slice(0, 12) }
+    if (matches.length === 0) return { sha: null, hint: 'No loaded run on this lane starts with that' }
+    return { sha: null, hint: `${matches.length} loaded runs match; type more characters` }
+}
+
+/** A lane pill's dot: the lane's latest run on the branch, as lanes.json records it. */
+function latestStatus(lanes: LanesIndex, laneId: string, branch: string): LanePillStatus {
+    const latest = laneLatest(lanes.lanes[laneId], branch)
+    if (!latest) return { kind: 'missing', text: `no runs on ${branch}` }
+    return {
+        kind: latest.overall === 'pass' ? 'pass' : 'fail',
+        text: `latest run on ${branch}: ${latest.overall} at ${latest.commit.slice(0, 7)}, ${formatRelative(latest.run_ts)}`,
+    }
+}
+
+export default function AllResultsPage() {
+    const router = useRouter()
+    const { branch, field: branchField, setBranch } = useBranchParam()
+    const [commitLookup, setCommitLookup] = React.useState('')
+
+    const laneParam = typeof router.query.lane === 'string' ? router.query.lane : undefined
+    const lanesQuery = useLanes()
+    const lane = resolveLane(lanesQuery.data, laneParam)
+    const ready = router.isReady && !lanesQuery.isPending
+    // ?branch= and the inputs are free text: only well-formed values are fetched or linked.
+    const validBranch = isBranchName(branch)
+
+    // Months "Load older" fetched, for this branch and lane only: switching either starts
+    // again from the index head.
+    const view = `${branch}:${lane.id}`
+    const [older, setOlder] = React.useState<{ view: string; months: string[] }>({ view: '', months: [] })
+    const olderMonths = older.view === view ? older.months : NO_MONTHS
+    const runs = useLaneEntries(
+        ready && !lanesQuery.isError && validBranch ? branch : undefined,
+        lane.id,
+        olderMonths
+    )
+    const lookup = resolveLookup(commitLookup, validBranch ? runs.entries : [])
 
     return (
         <div className="pt-8">
-            {/* Page heading */}
-            <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
-                        Workflow Results
-                    </h1>
-                    <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
-                        Individual CI runs across commits, branches and platforms.
-                    </p>
-                </div>
-                <a
-                    href={`https://github.com/${repoFilter}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-charcoal-900 dark:hover:text-electric"
-                >
-                    {repoFilter}
-                    <FiExternalLink className="h-3.5 w-3.5" />
-                </a>
+            <div className="mb-4">
+                <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
+                    All Results
+                </h1>
+                <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
+                    GPU regression results for every ComfyUI commit: fixed-seed workflows run on serverless RTX
+                    4090s and are compared with golden outputs, with one history per lane.
+                </p>
             </div>
 
-            <LegacyBanner />
+            <LanePills
+                className="mb-6"
+                lanes={lanesQuery.data}
+                value={lane.id}
+                hrefFor={(id) => ({ pathname: router.pathname, query: { ...router.query, lane: id } })}
+                statusFor={(id, lanes) => latestStatus(lanes, id, branch)}
+                inPlace
+                caption
+            />
 
-            {/* Dashboard */}
-            <StatsDashboard results={jobResults} />
-
-            {/* Filters */}
             <Surface className="mb-6 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                    <SectionTitle>Filters</SectionTitle>
-                    {hasActiveFilters && (
-                        <button
-                            onClick={clearAll}
-                            className="text-xs font-semibold text-ash-500 hover:text-electric"
-                        >
-                            Clear all
-                        </button>
-                    )}
-                </div>
+                <SectionTitle className="mb-3">Lookup</SectionTitle>
                 <div className="flex flex-wrap items-center gap-3">
-                    <BrandSelect
-                        id="repo-select"
-                        value={repoFilter}
-                        onChange={(e) => {
-                            setRepoFilter(e.target.value);
-                            analytic.track('Change Repo Filter', { repo: e.target.value });
-                            setCurrentPage(1);
-                        }}
-                        className="w-60"
-                    >
-                        {/* Keep a ?repo= value from the URL selectable even when it is not a known repo. */}
-                        {!LEGACY_REPOS.includes(repoFilter) && <option value={repoFilter}>{repoFilter}</option>}
-                        {LEGACY_REPOS.map((repo) => (
-                            <option key={repo} value={repo}>
-                                {repo}
-                            </option>
-                        ))}
-                    </BrandSelect>
-                    <BrandSelect
-                        id="branch-select"
-                        value={branchFilter}
-                        onChange={(e) => {
-                            setBranchFilter(e.target.value);
-                            analytic.track('Change Branch Filter', { branch: e.target.value });
-                            setCurrentPage(1);
-                        }}
-                        className="w-56"
-                    >
-                        <option value="">Select Branch</option>
-                        {branchesQueryResults?.branches?.map((branch, index) => (
-                            <option key={index} value={branch}>
-                                {branch}
-                            </option>
-                        ))}
-                    </BrandSelect>
-                    <BrandSelect
-                        id="os-select"
-                        value={filterOS}
-                        onChange={(e) => setFilterOS(e.target.value)}
-                        className="w-40"
-                    >
-                        <option value="">Select OS</option>
-                        <option value="linux">linux</option>
-                        <option value="macos">macos</option>
-                        <option value="windows">windows</option>
-                    </BrandSelect>
-                    <BrandSelect
-                        id="status-select"
-                        value={statusFilter}
-                        onChange={(e) => {
-                            setStatusFilter(e.target.value)
-                            analytic.track('Change Status Filter', { status: e.target.value })
-                        }}
-                        className="w-44"
-                    >
-                        <option value="">Select Status</option>
-                        {STATUS_OPTIONS.map((s) => (
-                            <option key={s.value} value={s.value}>
-                                {s.label}
-                            </option>
-                        ))}
-                    </BrandSelect>
                     <ClearableLabel
-                        id="commit-id-input"
-                        label="Commit ID (internal id)"
-                        title="Matches the api.comfy.org commit UUID (commit_id), not the git sha. Use the filter icon on a row to fill it in."
-                        value={commitId}
-                        onChange={(s) => {
-                            setCommitId(s);
-                            setCurrentPage(1);
-                        }}
-                        onClear={() => setCommitId('')}
+                        id="regression-branch"
+                        label="Branch"
+                        value={branchField}
+                        onChange={setBranch}
+                        onClear={() => setBranch(DEFAULT_BRANCH)}
                     />
                     <ClearableLabel
-                        id="workflow-id-input"
-                        label="Workflow Name"
-                        value={workflowNameFilter}
-                        onChange={(s) => {
-                            setWorkflowFilter(s);
-                            setCurrentPage(1);
-                        }}
-                        onClear={() => setWorkflowFilter('')}
+                        id="regression-commit"
+                        label="Commit SHA or prefix"
+                        title="A full SHA, or at least 7 characters matching one run loaded on this lane"
+                        value={commitLookup}
+                        onChange={setCommitLookup}
+                        onClear={() => setCommitLookup('')}
                     />
+                    {validBranch && lookup.sha ? (
+                        <Link
+                            href={commitPageHref(branch, lookup.sha, lane.id)}
+                            className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-sapphire-700 dark:hover:text-electric"
+                        >
+                            Open commit
+                        </Link>
+                    ) : (
+                        <span
+                            aria-disabled
+                            className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-ash-500/50"
+                        >
+                            Open commit
+                        </span>
+                    )}
+                    {lookup.hint && (
+                        <span className="min-w-0 break-words font-mono text-xs text-ash-500 dark:text-smoke-800">
+                            {lookup.hint}
+                        </span>
+                    )}
                 </div>
             </Surface>
 
-            {(isLoading || loadingBranchs) ? (
+            {!ready ? (
                 <div className="flex justify-center items-center py-24">
                     <Spinner size="xl" />
                 </div>
-            ) : isError ? (
+            ) : lanesQuery.isError ? (
+                <FetchError
+                    what="the lane index"
+                    error={lanesQuery.error}
+                    busy={lanesQuery.isFetching}
+                    onRetry={() => lanesQuery.refetch()}
+                />
+            ) : !validBranch ? (
                 <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
-                    <span className="text-lg font-semibold">Could not load results from api.comfy.org</span>
+                    <span className="text-lg font-semibold">Not a valid branch</span>
                     <span className="text-sm text-ash-500 dark:text-smoke-800">
-                        The request failed. Reload the page to try again.
-                    </span>
-                </Surface>
-            ) : jobResults.length === 0 ? (
-                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
-                    <span className="text-lg font-semibold">No results found</span>
-                    <span className="text-sm text-ash-500 dark:text-smoke-800">
-                        Try adjusting or clearing your filters.
+                        {'Branch names may use letters, digits, ".", "_", "-" and "/".'}
                     </span>
                 </Surface>
             ) : (
                 <>
-                    {statusFilter && (
-                        <p className="mb-2 text-xs text-ash-500 dark:text-smoke-800">
-                            Showing {visibleResults.length} of {jobResults.length} run{jobResults.length === 1 ? '' : 's'} on this page matching{' '}
-                            <span className="font-semibold">{StatusToHumanText(statusFilter as WorkflowRunStatus)}</span>.
-                        </p>
+                    {lane.missing && (
+                        <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
                     )}
-                    <Surface className="overflow-hidden">
-                        <div className="overflow-x-auto scrollbar-thin">
-                            <table className="w-full text-left text-sm">
-                                <thead>
-                                    <tr className="border-b border-smoke-300 dark:border-charcoal-400/60 text-[11px] uppercase tracking-wider text-ash-500 dark:text-smoke-800">
-                                        <th className="px-5 py-3 font-semibold">Workflow</th>
-                                        <th className="px-5 py-3 font-semibold">Status</th>
-                                        <th className="px-5 py-3 font-semibold">Commit</th>
-                                        <th className="px-5 py-3 font-semibold">Environment</th>
-                                        <th className="px-5 py-3 font-semibold">Output</th>
-                                        <th className="px-5 py-3 font-semibold">Run Time</th>
-                                        <th className="px-5 py-3 font-semibold text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-smoke-200 dark:divide-charcoal-400/40">
-                                    {visibleResults.length === 0 && (
-                                        <tr>
-                                            <td colSpan={7} className="px-5 py-10 text-center text-sm text-ash-500 dark:text-smoke-800">
-                                                No runs match the selected status on this page.
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {visibleResults.map((result, index) => (
-                                        <tr
-                                            key={result.id || index}
-                                            className={`group transition-colors hover:bg-smoke-200/60 dark:hover:bg-charcoal-700/40 ${result.status === WorkflowRunStatus.WorkflowRunStatusFailed
-                                                ? 'bg-red-500/[0.06] dark:bg-red-500/[0.08]'
-                                                : ''
-                                                }`}
-                                        >
-                                            {/* Workflow */}
-                                            <td className="px-5 py-4 align-top">
-                                                <div className="flex items-center gap-2">
-                                                    <Link
-                                                        href={`/workflow/${result.id}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="font-semibold text-charcoal-800 dark:text-smoke-100 hover:text-sapphire-700 dark:hover:text-electric"
-                                                    >
-                                                        {result.workflow_name}
-                                                    </Link>
-                                                    <button
-                                                        title="Filter by this workflow"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
-                                                        onClick={() => {
-                                                            setWorkflowFilter(result.workflow_name || '')
-                                                            setCurrentPage(1)
-                                                        }}
-                                                    >
-                                                        <CiFilter />
-                                                    </button>
-                                                </div>
-                                            </td>
-
-                                            {/* Status */}
-                                            <td className="px-5 py-4 align-top">
-                                                <WorkflowStatusButton
-                                                    text={StatusToHumanText(result?.status)}
-                                                    status={StatusToColor(result.status)}
-                                                />
-                                            </td>
-
-                                            {/* Commit */}
-                                            <td className="px-5 py-4 align-top">
-                                                <div className="flex items-center gap-2">
-                                                    <Link
-                                                        href={`https://github.com/${result.git_repo}/commit/${result.commit_hash}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="rounded bg-smoke-200 dark:bg-charcoal-700 px-1.5 py-0.5 font-mono text-xs text-sapphire-700 dark:text-plum-300 hover:underline"
-                                                    >
-                                                        {result.commit_hash?.slice(0, 7)}
-                                                    </Link>
-                                                    <button
-                                                        title="Filter by this commit"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
-                                                        onClick={() => {
-                                                            setCommitId(result.commit_id || '')
-                                                            setCurrentPage(1)
-                                                        }}
-                                                    >
-                                                        <CiFilter />
-                                                    </button>
-                                                </div>
-                                                <div className="mt-1 max-w-[22rem] truncate text-xs text-ash-500 dark:text-smoke-800" title={result.commit_message}>
-                                                    {result.commit_message}
-                                                </div>
-                                                <div className="mt-0.5 text-[11px] text-ash-500/80 dark:text-smoke-800/80">
-                                                    {result.commit_time !== undefined
-                                                        ? new Date(result.commit_time * 1000).toLocaleString()
-                                                        : ''}
-                                                </div>
-                                            </td>
-
-                                            {/* Environment */}
-                                            <td className="px-5 py-4 align-top">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm">
-                                                        {result.operating_system}
-                                                        <span className="text-ash-500 dark:text-smoke-800">
-                                                            {' '}· py{result?.python_version}
-                                                        </span>
-                                                    </span>
-                                                    <button
-                                                        title="Filter by this OS"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
-                                                        onClick={() => {
-                                                            setFilterOS(result.operating_system || '')
-                                                            setCurrentPage(1)
-                                                        }}
-                                                    >
-                                                        <CiFilter />
-                                                    </button>
-                                                </div>
-                                            </td>
-
-                                            {/* Output */}
-                                            <td className="px-5 py-4 align-top">
-                                                {result.storage_file?.public_url ? (
-                                                    <Link
-                                                        href={`/workflow/${result.id}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                    >
-                                                        <SafeThumb
-                                                            src={result.storage_file.public_url}
-                                                            alt={result.workflow_name || 'output file'}
-                                                            size={72}
-                                                            className="h-[72px] w-[72px] transition-transform hover:scale-105"
-                                                        />
-                                                    </Link>
-                                                ) : (
-                                                    <NoOutput className="h-[72px] w-[72px]" />
-                                                )}
-                                            </td>
-
-                                            {/* Run time */}
-                                            <td className="px-5 py-4 align-top">
-                                                <span className="font-mono text-sm tabular-nums">
-                                                    {result.end_time && result.start_time
-                                                        ? formatDuration(Math.abs(result.end_time - result.start_time))
-                                                        : 'unknown'}
-                                                </span>
-                                            </td>
-
-                                            {/* Action */}
-                                            <td className="px-5 py-4 align-top text-right">
-                                                <div className="flex flex-col items-end gap-1.5">
-                                                    <Link
-                                                        href={`https://github.com/${result.git_repo}/actions/runs/${result.action_run_id}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-2.5 py-1.5 text-xs font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-charcoal-900 dark:hover:text-electric"
-                                                    >
-                                                        Action
-                                                        <FiExternalLink className="h-3 w-3" />
-                                                    </Link>
-                                                    {result.branch_name && result.commit_hash && (
-                                                        <Link
-                                                            href={`/regression/${encodeURIComponent(result.branch_name)}/${encodeURIComponent(result.commit_hash)}`}
-                                                            className="text-[11px] font-medium text-ash-500 hover:text-electric hover:underline"
-                                                        >
-                                                            Regression
-                                                        </Link>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Surface>
-
-                    <div className="mt-6 flex justify-center">
-                        <Pager
-                            currentPage={currentPage}
-                            totalPages={filteredJobResults?.totalNumberOfPages || 1}
-                            onPageChange={onPageChange}
-                        />
-                    </div>
+                    <LaneHistory
+                        key={view}
+                        branch={branch}
+                        lane={lane}
+                        runs={runs}
+                        olderMonths={olderMonths}
+                        onLoadOlder={(month) => setOlder({ view, months: [...olderMonths, month] })}
+                    />
                 </>
             )}
         </div>
-    );
+    )
 }
-
-export default GitCommitsList

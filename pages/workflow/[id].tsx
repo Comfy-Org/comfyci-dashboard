@@ -65,8 +65,8 @@ function WorkflowResultDetail() {
 
     return (
         <div className="space-y-6 pt-8">
-            <Link href="/" className="inline-flex items-center gap-1 text-sm text-ash-500 dark:text-smoke-700 hover:text-charcoal-800 dark:hover:text-electric">
-                ← Back to results
+            <Link href="/legacy" className="inline-flex items-center gap-1 text-sm text-ash-500 dark:text-smoke-700 hover:text-charcoal-800 dark:hover:text-electric">
+                ← Back to legacy results
             </Link>
 
             {/* Hero */}

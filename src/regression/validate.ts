@@ -7,6 +7,10 @@
 export const isCommitSha = (value: unknown): value is string =>
     typeof value === 'string' && /^[0-9a-f]{40}$/.test(value)
 
+/** A lowercase hex abbreviation of a commit SHA, 7 to 39 characters: resolved against loaded runs, never fetched. */
+export const isShaPrefix = (value: unknown): value is string =>
+    typeof value === 'string' && /^[0-9a-f]{7,39}$/.test(value)
+
 /** A pull request number: a positive integer, never a string that could extend a link's path. */
 export const isPrNumber = (value: unknown): value is number =>
     typeof value === 'number' && Number.isSafeInteger(value) && value > 0
@@ -47,6 +51,9 @@ export const isPathSegment = (value: unknown): value is string =>
  */
 export const shellQuote = (value: string) =>
     /^[A-Za-z0-9._/-]+$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
+
+/** Element id of a workflow's card on the commit page, for #fragment links to it. */
+export const workflowAnchor = (workflowId: string) => `wf-${encodeURIComponent(workflowId)}`
 
 /** Link to a commit's regression page, each segment encoded so it stays one path segment. */
 export const commitPageHref = (branch: string, commit: string, laneId: string) =>

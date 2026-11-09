@@ -1,237 +1,552 @@
-import React from 'react'
-import { useGetBranch, useGetGitcommitsummary } from '../../src/api/generated'
 import { Spinner } from 'flowbite-react'
 import Link from 'next/link'
-import { FiExternalLink } from 'react-icons/fi'
+import { FiChevronDown } from 'react-icons/fi'
 import { useRouter } from 'next/router'
-import { LegacyBanner } from '../../components/LegacyBanner'
-import { WorkflowStatusButton } from '../../components/StatusButton'
-import { Surface, SectionTitle } from '../../components/Surface'
-import { BrandSelect } from '../../components/Inputs'
+import React from 'react'
+import { FetchError } from '../../components/FetchError'
+import { ClearableLabel } from '../../components/Labels/ClearableLabel'
 import { Pager } from '../../components/Pager'
-import { DEFAULT_REPO, LEGACY_REPOS } from '../../src/legacy/repos'
+import { RegressionBadge, badgeMeta, changedHere } from '../../components/RegressionBadge'
+import type { DisplayState } from '../../components/RegressionBadge'
+import { Surface } from '../../components/Surface'
+import { DotLegend, WorkflowDots, cellState, cellStates, entryOverall } from '../../components/WorkflowDots'
+import type { CellState } from '../../components/WorkflowDots'
+import { COMFY_REPO, useIndexHeads, useLanes } from '../../src/regression/client'
+import { DEFAULT_BRANCH, useBranchParam } from '../../src/regression/branchParam'
+import { headMayOmit, headWindowStart } from '../../src/regression/indexOrder'
+import { laneTag, orderedLaneIds } from '../../src/regression/lanes'
+import type { IndexEntry, IndexHead, LaneInfo } from '../../src/regression/types'
+import { commitPageHref, isBranchName, isPrNumber } from '../../src/regression/validate'
+import { orderWorkflows } from '../../src/regression/workflows'
+import { formatRelative } from '../../utils/time'
 
-function formatTimestamp(ts?: string): string {
-    if (!ts) return ''
-    const d = new Date(ts)
-    return isNaN(d.getTime()) ? ts : d.toLocaleString()
+const PAGE_SIZE = 30
+const dim = 'text-ash-500 dark:text-smoke-800'
+const quiet = 'text-[11px] text-ash-500/70 dark:text-smoke-800/70'
+// The Commit column's text width: narrow on a phone so the first lane's verdict is on screen.
+const commitWidth = 'max-w-[9rem] sm:max-w-[22rem]'
+// Cell padding, tighter on a phone.
+const cellPad = 'px-3 py-3 sm:px-4'
+
+/** One lane's column: its registry entry, its index head on the branch, and its slot order. */
+interface LaneColumn {
+    id: string
+    info: LaneInfo
+    /** "primary", "retired" or "legacy"; none for an ordinary lane, as on the lane pills. */
+    tag: ReturnType<typeof laneTag>
+    status: 'loading' | 'error' | 'none' | 'ok'
+    head: IndexHead | null
+    /** Sort time of the oldest run the head lists when it lists only the newest of the lane's runs, else null. */
+    windowStart: number | null
+    workflows: string[]
 }
 
-function GitCommitsList() {
-    const [currentPage, setCurrentPage] = React.useState(1)
-    const onPageChange = (page: number) => setCurrentPage(page)
-    const router = useRouter();
-    const [repoFilter, setRepoFilter] = React.useState<string>(DEFAULT_REPO)
-    const [branchFilter, setBranchFilter] = React.useState<string>('master')
-    // The blank <option> and its placeholder label both mean "all branches".
-    const branchName = branchFilter === '' || branchFilter === 'Select Branch' ? undefined : branchFilter
-    const { data: filteredJobResults, isLoading, isError } = useGetGitcommitsummary({
-        branchName,
-        page: currentPage,
-        repoName: repoFilter,
-        pageSize: 10,
-    })
-    const { data: branchesQueryResults, isLoading: loadingBranchs } = useGetBranch({
-        repo_name: repoFilter
-    })
+/** One lane's run of a commit: the entry, its overall badge and its dots. */
+interface LaneRun {
+    entry: IndexEntry
+    overall: DisplayState
+    cells: CellState[]
+}
 
-    React.useEffect(() => {
-        const repo = router.query.repo;
-        if (typeof repo === 'string') {
-            setRepoFilter(repo);
+/** A workflow that passes on some lanes and fails on others at the same commit. */
+interface Disagreement {
+    wf: string
+    green: string[]
+    red: string[]
+}
+
+interface Row {
+    c: string
+    m: IndexEntry['m']
+    /** Commit time when any lane knows it, else the newest run time across lanes. */
+    ts: number
+    committed: boolean
+    runs: Map<string, LaneRun>
+    red: boolean
+    changed: boolean
+    disagreements: Disagreement[]
+}
+
+type Filter = 'all' | 'red' | 'disagree'
+
+// The filter and page live in the URL (?show=red|disagree, ?page=n, defaults left out), so
+// Back from a commit page and a shared link both return to the same view.
+const filterOf = (show: unknown): Filter => (show === 'red' || show === 'disagree' ? show : 'all')
+const pageOf = (page: unknown): number =>
+    typeof page === 'string' && /^[1-9][0-9]{0,4}$/.test(page) ? Number(page) : 1
+// A new branch starts again at page 1.
+const BRANCH_RESETS = ['page']
+
+const FILTERS: { id: Filter; label: string; title: string }[] = [
+    { id: 'all', label: 'All commits', title: 'Every commit any lane tested' },
+    { id: 'red', label: 'Any lane red', title: 'At least one lane has a regression or an execution error' },
+    { id: 'disagree', label: 'Lanes disagree', title: 'A workflow passes on one lane and fails on another' },
+]
+
+/** Green for a pass or accepted drift, red for a regression or execution error, else neither. */
+function tone(state: DisplayState): 'green' | 'red' | null {
+    if (state.verdict === 'pass' || state.verdict === 'accepted') return 'green'
+    if (state.verdict === 'fail' || state.verdict === 'execution_error') return 'red'
+    return null
+}
+
+/** One lane's run of a commit, its overall badge by the same rule as the history table. */
+function laneRun(entry: IndexEntry, col: LaneColumn): LaneRun {
+    const goldens = col.info.goldens
+    return { entry, overall: entryOverall(entry, goldens), cells: cellStates(entry, col.workflows, goldens) }
+}
+
+/**
+ * Workflows two or more lanes ran at this commit with one passing and another failing.
+ * Compared per workflow so a workflow only one lane runs (the pack workflows, say) never
+ * reads as the lanes disagreeing.
+ */
+function disagreementsOf(runs: Map<string, LaneRun>, columns: LaneColumn[]): Disagreement[] {
+    const byWf = new Map<string, Disagreement>()
+    for (const col of columns) {
+        const run = runs.get(col.id)
+        if (!run) continue
+        for (const wf of Object.keys(run.entry.w)) {
+            const t = tone(cellState(run.entry.w[wf], wf, col.info.goldens))
+            if (!t) continue
+            const d = byWf.get(wf) ?? { wf, green: [], red: [] }
+            d[t].push(col.id)
+            byWf.set(wf, d)
         }
-    }, [router.query.repo]);
+    }
+    return Array.from(byWf.values()).filter((d) => d.green.length > 0 && d.red.length > 0)
+}
 
-    const groupedResults = React.useMemo(() => {
-        // Generate the final grouped results, including error handling for unexpected data types
-        return filteredJobResults?.commitSummaries?.map(commitSummary => ({
-            gitRepo: repoFilter,
-            commitHash: commitSummary.commit_hash,
-            commitMessage: commitSummary.commit_name,
-            commitTime: commitSummary.timestamp,
-            branch: commitSummary.branch_name,
-            osStatus: Object.entries(commitSummary.status_summary || {}).map(([os, status]) => {
-                if (status === "FAILED") {
-                    return {
-                        os,
-                        status: 'red', // Red if any job has failed
-                    };
-                }
-                if (status === "STARTED") {
-                    return {
-                        os,
-                        status: 'orange', // Yellow if any job is in progress
-                    };
-                }
-                return {
-                    os,
-                    status: 'green', // Green if all jobs have succeeded
-                };
-            }),
-        }));
-    }, [filteredJobResults, repoFilter]);
+/** Every commit any lane's head holds, one row each, newest first by commit time. */
+function mergeRows(columns: LaneColumn[]): Row[] {
+    const rows = new Map<string, { c: string; m: IndexEntry['m']; runTs: number; runs: Map<string, LaneRun> }>()
+    for (const col of columns) {
+        for (const entry of col.head?.entries ?? []) {
+            const row = rows.get(entry.c) ?? { c: entry.c, m: null, runTs: entry.t, runs: new Map() }
+            rows.set(entry.c, row)
+            row.m = row.m ?? entry.m
+            row.runTs = Math.max(row.runTs, entry.t)
+            // The index upserts one entry per commit; should a head repeat one, the newest run wins.
+            const seen = row.runs.get(col.id)
+            if (!seen || entry.t > seen.entry.t) row.runs.set(col.id, laneRun(entry, col))
+        }
+    }
+    return Array.from(rows.values())
+        .map((r) => {
+            const overalls = Array.from(r.runs.values()).map((run) => run.overall)
+            const ct = r.m?.ct
+            return {
+                c: r.c,
+                m: r.m,
+                ts: ct ?? r.runTs,
+                committed: ct != null,
+                runs: r.runs,
+                red: overalls.some((s) => tone(s) === 'red'),
+                changed: overalls.some(changedHere),
+                disagreements: disagreementsOf(r.runs, columns),
+            }
+        })
+        // Newest first, ties by sha: the order the worker publishes each lane's index in.
+        .sort((a, b) => b.ts - a.ts || (a.c < b.c ? 1 : a.c > b.c ? -1 : 0))
+}
+
+function labelOf(columns: LaneColumn[], id: string): string {
+    return columns.find((c) => c.id === id)?.info.label ?? id
+}
+
+/** "lanes differ", opening (by click, tap or keyboard) to which workflow passes where and fails where. */
+function DisagreeMarker({ row, columns }: { row: Row; columns: LaneColumn[] }) {
+    const lanes = (ids: string[]) => ids.map((id) => labelOf(columns, id)).join(', ')
+    return (
+        // On its own line under the commit, so opening it wraps inside the column instead of widening it.
+        <details className="group mt-1">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-0.5 rounded border border-amber-500/40 px-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400 [&::-webkit-details-marker]:hidden">
+                lanes differ
+                <FiChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <ul className={`mt-1 space-y-0.5 text-[11px] text-amber-700 dark:text-amber-400 ${commitWidth}`}>
+                {row.disagreements.map((d) => (
+                    <li key={d.wf}>
+                        <span className="font-mono">{d.wf}</span> passes on {lanes(d.green)}; fails on{' '}
+                        {lanes(d.red)}
+                    </li>
+                ))}
+            </ul>
+        </details>
+    )
+}
+
+function CommitCell({ branch, row, columns }: { branch: string; row: Row; columns: LaneColumn[] }) {
+    // The primary lane's commit page, or the first lane (in column order) that ran the commit.
+    const laneId = columns.find((col) => row.runs.has(col.id))?.id
+    const pr = row.m && isPrNumber(row.m.pr) ? row.m.pr : null
+    const when = new Date(row.ts * 1000).toLocaleString()
+    return (
+        <td className={`${cellPad} align-top`}>
+            <div className="flex flex-wrap items-center gap-2">
+                {laneId ? (
+                    <Link
+                        href={commitPageHref(branch, row.c, laneId)}
+                        className="rounded bg-smoke-200 dark:bg-charcoal-700 px-1.5 py-0.5 font-mono text-xs text-sapphire-700 dark:text-plum-300 hover:underline"
+                    >
+                        {row.c.slice(0, 7)}
+                    </Link>
+                ) : (
+                    <span className="font-mono text-xs">{row.c.slice(0, 7)}</span>
+                )}
+                {pr != null && (
+                    <a
+                        href={`${COMFY_REPO}/pull/${pr}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-ash-500 hover:text-sapphire-700 dark:hover:text-electric hover:underline"
+                    >
+                        #{pr}
+                    </a>
+                )}
+            </div>
+            {row.m?.s && (
+                <div className={`mt-1 truncate text-xs ${commitWidth} ${dim}`} title={row.m.s}>
+                    {row.m.s}
+                </div>
+            )}
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-ash-500/80 dark:text-smoke-800/80">
+                {row.m?.a && <span className="hidden sm:inline">{row.m.a}</span>}
+                <span title={`${row.committed ? 'committed' : 'tested'} ${when}`}>{formatRelative(row.ts)}</span>
+            </div>
+            {row.disagreements.length > 0 && <DisagreeMarker row={row} columns={columns} />}
+        </td>
+    )
+}
+
+function LaneCell({ branch, row, col }: { branch: string; row: Row; col: LaneColumn }) {
+    if (col.status === 'loading') {
+        return <span className={`${quiet} animate-pulse`}>loading…</span>
+    }
+    if (col.status === 'error') {
+        return (
+            <span className={quiet} title="This lane's run index could not be loaded">
+                —
+            </span>
+        )
+    }
+    const run = row.runs.get(col.id)
+    if (!run) {
+        // The head lists only the lane's newest runs: for an older commit it cannot say,
+        // but the commit page reads the run itself.
+        if (headMayOmit(col.head, row.ts, col.windowStart)) {
+            return (
+                <Link
+                    href={commitPageHref(branch, row.c, col.id)}
+                    title={`Older than the ${col.head?.entries.length} newest runs this lane's index lists, so it may still have run here. Open the commit page to check.`}
+                    className={`${quiet} -m-1.5 inline-block rounded-lg p-1.5 hover:bg-smoke-200/70 dark:hover:bg-charcoal-700/50`}
+                >
+                    —
+                </Link>
+            )
+        }
+        return <span className={quiet}>not run</span>
+    }
+    const verdict = badgeMeta(run.overall.verdict, run.overall.inherited).text
+    return (
+        <Link
+            href={commitPageHref(branch, row.c, col.id)}
+            aria-label={`${col.info.label} at ${row.c.slice(0, 7)}: ${verdict}. Open the commit page`}
+            className="-m-1.5 flex w-max flex-col items-start gap-1.5 rounded-lg p-1.5 transition-colors hover:bg-smoke-200/70 hover:ring-1 hover:ring-electric/40 dark:hover:bg-charcoal-700/50"
+        >
+            <RegressionBadge verdict={run.overall.verdict} inherited={run.overall.inherited} plain />
+            {run.cells.length > 0 && <WorkflowDots cells={run.cells} compact />}
+        </Link>
+    )
+}
+
+function LaneHeader({ col, branch }: { col: LaneColumn; branch: string }) {
+    const note =
+        col.status === 'none' ? `no runs on ${branch}` : col.status === 'error' ? 'index not loaded' : null
+    return (
+        <th className={`${cellPad} align-bottom font-semibold`}>
+            <div className="flex max-w-[9rem] flex-col gap-0.5 sm:max-w-[12rem]">
+                <span className="normal-case tracking-normal text-xs text-charcoal-800 dark:text-smoke-100">
+                    {col.info.label}
+                </span>
+                <span className="text-[10px]">
+                    {col.tag}
+                    {col.workflows.length > 0 && (
+                        <span className="normal-case tracking-normal">
+                            {col.tag && ' · '}
+                            {col.workflows.length} workflows
+                        </span>
+                    )}
+                </span>
+                {note && <span className="normal-case tracking-normal text-[10px] font-normal">{note}</span>}
+            </div>
+        </th>
+    )
+}
+
+function FilterBar({
+    value,
+    counts,
+    onChange,
+}: {
+    value: Filter
+    counts: Record<Filter, number>
+    onChange: (f: Filter) => void
+}) {
+    return (
+        <div
+            role="group"
+            aria-label="Show commits"
+            className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-2xl border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 p-1"
+        >
+            {FILTERS.map((f) => {
+                const active = f.id === value
+                return (
+                    <button
+                        key={f.id}
+                        type="button"
+                        aria-pressed={active}
+                        title={f.title}
+                        onClick={() => onChange(f.id)}
+                        className={[
+                            'whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                            active
+                                ? 'bg-electric text-ink-900 shadow-sm'
+                                : 'text-ash-500 dark:text-smoke-700 hover:text-charcoal-800 dark:hover:text-white',
+                        ].join(' ')}
+                    >
+                        {f.label} <span className="tabular-nums opacity-70">{counts[f.id]}</span>
+                    </button>
+                )
+            })}
+        </div>
+    )
+}
+
+export default function WaterfallPage() {
+    const router = useRouter()
+    const { branch, field: branchField, setBranch } = useBranchParam(BRANCH_RESETS)
+    const filter = filterOf(router.query.show)
+    const setView = (show: Filter, page: number) => {
+        const query = { ...router.query }
+        delete query.show
+        delete query.page
+        if (show !== 'all') query.show = show
+        if (page > 1) query.page = String(page)
+        router.replace({ pathname: router.pathname, query }, undefined, { shallow: true, scroll: false })
+    }
+
+    const lanesQuery = useLanes()
+    const lanes = lanesQuery.data
+    const validBranch = isBranchName(branch)
+    const ids = router.isReady && validBranch ? orderedLaneIds(lanes) : []
+    const heads = useIndexHeads(ids.map((id) => ({ branch, lane: id })))
+
+    const columns: LaneColumn[] = lanes
+        ? ids.map((id, i) => {
+              const q = heads[i]
+              const head = q?.data ?? null
+              const info = lanes.lanes[id]
+              return {
+                  id,
+                  info,
+                  tag: laneTag(lanes, id),
+                  status: !q || q.isPending ? 'loading' : q.isError ? 'error' : head ? 'ok' : 'none',
+                  head,
+                  windowStart: headWindowStart(head),
+                  workflows: head ? orderWorkflows(head.entries, info.goldens) : [],
+              }
+          })
+        : []
+    const rows = mergeRows(columns)
+    const counts: Record<Filter, number> = {
+        all: rows.length,
+        red: rows.filter((r) => r.red).length,
+        disagree: rows.filter((r) => r.disagreements.length > 0).length,
+    }
+    const shown =
+        filter === 'red'
+            ? rows.filter((r) => r.red)
+            : filter === 'disagree'
+            ? rows.filter((r) => r.disagreements.length > 0)
+            : rows
+    const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+    const page = Math.min(pageOf(router.query.page), totalPages)
+    const pageRows = shown.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    const perLane = Math.max(0, ...columns.map((c) => c.head?.entries.length ?? 0))
+    // Whether some lane has run more commits than its head lists, so older history exists.
+    const truncated = columns.some((c) => c.windowStart != null)
+    const failed = columns.flatMap((col, i) => (col.status === 'error' ? [{ col, query: heads[i] }] : []))
+    const allLoading = columns.length > 0 && columns.every((c) => c.status === 'loading')
+    const anyLoading = columns.some((c) => c.status === 'loading')
+    const historyHref = branch === DEFAULT_BRANCH ? '/' : { pathname: '/', query: { branch } }
+    // One failed lane must not blank the page: its error sits above whatever the others show.
+    const fetchErrors = failed.map(({ col, query }) => (
+        <FetchError
+            key={col.id}
+            what={`the run index of ${col.info.label}`}
+            error={query.error}
+            busy={query.isFetching}
+            onRetry={() => query.refetch()}
+        />
+    ))
+
+    let body: React.ReactNode
+    if (!router.isReady || lanesQuery.isPending || allLoading) {
+        body = (
+            <div className="flex justify-center items-center py-24">
+                <Spinner size="xl" />
+            </div>
+        )
+    } else if (lanesQuery.isError) {
+        body = (
+            <FetchError
+                what="the lane index"
+                error={lanesQuery.error}
+                busy={lanesQuery.isFetching}
+                onRetry={() => lanesQuery.refetch()}
+            />
+        )
+    } else if (!validBranch) {
+        body = (
+            <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                <span className="text-lg font-semibold">Not a valid branch</span>
+                <span className={`text-sm ${dim}`}>
+                    {'Branch names may use letters, digits, ".", "_", "-" and "/".'}
+                </span>
+            </Surface>
+        )
+    } else if (rows.length === 0 && !anyLoading) {
+        // Only the lanes whose index loaded can say there are no runs; when none loaded,
+        // the errors are all there is to show.
+        body = (
+            <>
+                {fetchErrors}
+                {failed.length < columns.length || columns.length === 0 ? (
+                    <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+                        <span className="text-lg font-semibold">No runs on this branch</span>
+                        <span className={`text-sm ${dim}`}>
+                            {columns.length === 0 ? (
+                                'No lanes are published yet.'
+                            ) : (
+                                <>
+                                    {failed.length > 0 ? 'No lane whose index loaded' : 'No lane'} has published a
+                                    run for <span className="font-mono">{branch}</span>.
+                                </>
+                            )}
+                        </span>
+                    </Surface>
+                ) : null}
+            </>
+        )
+    } else {
+        body = (
+            <>
+                {fetchErrors}
+                <div className="mb-4">
+                    <FilterBar
+                        value={filter}
+                        counts={counts}
+                        // A new filter starts again at page 1.
+                        onChange={(f) => setView(f, 1)}
+                    />
+                </div>
+                <Surface className="overflow-hidden">
+                    {/* w-max: the table keeps its columns and scrolls inside the card on a phone. */}
+                    <div className="overflow-x-auto scrollbar-thin">
+                        <table className="w-max min-w-full text-left text-sm">
+                            <thead>
+                                <tr className="border-b border-smoke-300 dark:border-charcoal-400/60 text-[11px] uppercase tracking-wider text-ash-500 dark:text-smoke-800">
+                                    <th className={`${cellPad} align-bottom font-semibold`}>Commit</th>
+                                    {columns.map((col) => (
+                                        <LaneHeader key={col.id} col={col} branch={branch} />
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-smoke-200 dark:divide-charcoal-400/40">
+                                {pageRows.length === 0 && (
+                                    <tr>
+                                        <td colSpan={columns.length + 1} className={`px-4 py-10 text-center text-sm ${dim}`}>
+                                            {filter === 'red'
+                                                ? 'No lane is red on any commit shown.'
+                                                : 'The lanes agree on every commit shown.'}
+                                        </td>
+                                    </tr>
+                                )}
+                                {pageRows.map((row) => (
+                                    <tr
+                                        key={row.c}
+                                        className={`transition-colors hover:bg-smoke-200/60 dark:hover:bg-charcoal-700/40 ${
+                                            row.changed ? 'bg-red-500/[0.06] dark:bg-red-500/[0.08]' : ''
+                                        }`}
+                                    >
+                                        <CommitCell branch={branch} row={row} columns={columns} />
+                                        {columns.map((col) => (
+                                            <td key={col.id} className={`${cellPad} align-top`}>
+                                                <LaneCell branch={branch} row={row} col={col} />
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="flex flex-col gap-1.5 border-t border-smoke-200 dark:border-charcoal-400/40 px-5 py-2">
+                        <DotLegend />
+                        <span className={`text-[11px] ${dim}`}>
+                            <span className="font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                                lanes differ
+                            </span>{' '}
+                            a workflow passes on one lane and fails on another at that commit; open it for which.
+                        </span>
+                        {truncated && (
+                            <span className={`text-[11px] ${dim}`}>
+                                <span className="font-semibold">—</span> older than the newest runs that lane{"'"}s
+                                index lists: it may still have run the commit. The cell opens its commit page, and All
+                                Results has the lane{"'"}s full history.
+                            </span>
+                        )}
+                    </div>
+                </Surface>
+                <div className="mt-6 flex justify-center">
+                    <Pager
+                        currentPage={page}
+                        totalPages={totalPages}
+                        onPageChange={(p) => setView(filter, p)}
+                    />
+                </div>
+                <p className={`mt-2 text-center text-[11px] ${dim}`}>
+                    Showing up to the newest {perLane} commits from each lane{"'"}s index head ({rows.length} in
+                    all).{' '}
+                    <Link href={historyHref} className="font-medium text-sapphire-700 dark:text-electric hover:underline">
+                        {truncated ? 'Older history is on All Results →' : 'Per-lane history is on All Results →'}
+                    </Link>
+                </p>
+            </>
+        )
+    }
 
     return (
         <div className="pt-8">
-            {/* Page heading */}
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
                         Waterfall
                     </h1>
-                    <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
-                        Per-commit CI status across operating systems. Click a platform to drill into its runs.
+                    <p className={`mt-1 text-sm ${dim}`}>
+                        Every tested commit across lanes. A cell is that lane{"'"}s verdict for the commit; click it
+                        for the commit page.
                     </p>
                 </div>
-                <a
-                    href={`https://github.com/${repoFilter}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-charcoal-900 dark:hover:text-electric"
-                >
-                    {repoFilter}
-                    <FiExternalLink className="h-3.5 w-3.5" />
-                </a>
+                <ClearableLabel
+                    id="waterfall-branch"
+                    label="Branch"
+                    value={branchField}
+                    onChange={setBranch}
+                    onClear={() => setBranch(DEFAULT_BRANCH)}
+                />
             </div>
-
-            <LegacyBanner />
-
-            {/* Filters */}
-            <Surface className="mb-6 p-4">
-                <div className="mb-3">
-                    <SectionTitle>Filters</SectionTitle>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <BrandSelect
-                        id="repo-select"
-                        value={repoFilter}
-                        onChange={(e) => {
-                            const repo = e.target.value
-                            setRepoFilter(repo)
-                            setCurrentPage(1)
-                            router.push({ pathname: router.pathname, query: { ...router.query, repo } }, undefined, { shallow: true })
-                        }}
-                        className="w-60"
-                    >
-                        {/* Keep a ?repo= value from the URL selectable even when it is not a known repo. */}
-                        {!LEGACY_REPOS.includes(repoFilter) && <option value={repoFilter}>{repoFilter}</option>}
-                        {LEGACY_REPOS.map((repo) => (
-                            <option key={repo} value={repo}>
-                                {repo}
-                            </option>
-                        ))}
-                    </BrandSelect>
-                    <BrandSelect
-                        id="branch-select"
-                        value={branchFilter}
-                        onChange={(e) => {
-                            setBranchFilter(e.target.value)
-                            setCurrentPage(1)
-                        }}
-                        className="w-56"
-                    >
-                        <option value="">Select Branch</option>
-                        {branchesQueryResults?.branches?.map((branch, index) => (
-                            <option key={index} value={branch}>
-                                {branch}
-                            </option>
-                        ))}
-                    </BrandSelect>
-                </div>
-            </Surface>
-
-            {(isLoading || loadingBranchs) ? (
-                <div className="flex justify-center items-center py-24">
-                    <Spinner size="xl" />
-                </div>
-            ) : isError ? (
-                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
-                    <span className="text-lg font-semibold">Could not load results from api.comfy.org</span>
-                    <span className="text-sm text-ash-500 dark:text-smoke-800">
-                        The request failed. Reload the page to try again.
-                    </span>
-                </Surface>
-            ) : !groupedResults || groupedResults.length === 0 ? (
-                <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
-                    <span className="text-lg font-semibold">No commits found</span>
-                    <span className="text-sm text-ash-500 dark:text-smoke-800">
-                        Try a different branch.
-                    </span>
-                </Surface>
-            ) : (
-                <>
-                    <Surface className="overflow-hidden">
-                        <div className="overflow-x-auto scrollbar-thin">
-                            <table className="w-full text-left text-sm">
-                                <thead>
-                                    <tr className="border-b border-smoke-300 dark:border-charcoal-400/60 text-[11px] uppercase tracking-wider text-ash-500 dark:text-smoke-800">
-                                        <th className="px-5 py-3 font-semibold">Commit</th>
-                                        <th className="px-5 py-3 font-semibold">Time</th>
-                                        <th className="px-5 py-3 font-semibold">Platform Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-smoke-200 dark:divide-charcoal-400/40">
-                                    {groupedResults.map(
-                                        ({ osStatus, gitRepo, commitMessage, commitTime, commitHash, branch }, index) => (
-                                            <tr
-                                                key={index}
-                                                className="group transition-colors hover:bg-smoke-200/60 dark:hover:bg-charcoal-700/40"
-                                            >
-                                                <td className="px-5 py-4 align-top">
-                                                    <div className="flex items-center gap-2">
-                                                        <Link
-                                                            href={`https://github.com/${gitRepo}/commit/${commitHash}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="rounded bg-smoke-200 dark:bg-charcoal-700 px-1.5 py-0.5 font-mono text-xs text-sapphire-700 dark:text-plum-300 hover:underline"
-                                                        >
-                                                            {commitHash?.slice(0, 7)}
-                                                        </Link>
-                                                    </div>
-                                                    <div className="mt-1 max-w-[32rem] truncate text-sm text-charcoal-800 dark:text-smoke-200" title={commitMessage}>
-                                                        {commitMessage}
-                                                    </div>
-                                                </td>
-                                                <td className="px-5 py-4 align-top text-xs text-ash-500 dark:text-smoke-800 whitespace-nowrap">
-                                                    {formatTimestamp(commitTime)}
-                                                </td>
-                                                <td className="px-5 py-4 align-top">
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {osStatus.map(({ os, status }) =>
-                                                            <WorkflowStatusButton key={os} text={os} status={status}
-                                                                onClick={() => {
-                                                                    // Drill into All Results for this repo and platform on the row's branch (or the
-                                                                    // branch filter). Omit the key when neither is set: Next serialises an undefined
-                                                                    // query value as an empty branch= param.
-                                                                    const drillBranch = branch || branchName
-                                                                    router.push({
-                                                                        pathname: '/',
-                                                                        query: { repo: gitRepo, ...(drillBranch ? { branch: drillBranch } : {}), os },
-                                                                    });
-                                                                }}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Surface>
-
-                    <div className="mt-6 flex justify-center">
-                        <Pager
-                            currentPage={currentPage}
-                            totalPages={filteredJobResults?.totalNumberOfPages || 1}
-                            onPageChange={onPageChange}
-                        />
-                    </div>
-                </>
-            )}
+            {body}
         </div>
-    );
+    )
 }
-
-export default GitCommitsList
