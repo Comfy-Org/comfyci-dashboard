@@ -77,10 +77,10 @@ function GitCommitsList() {
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
-                        Waterfall
+                        Legacy waterfall
                     </h1>
                     <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
-                        Per-commit CI status across operating systems. Click a platform to drill into its runs.
+                        Per-commit status of the legacy CI across operating systems. Click a platform to drill into its runs.
                     </p>
                 </div>
                 <a
@@ -200,12 +200,12 @@ function GitCommitsList() {
                                                         {osStatus.map(({ os, status }) =>
                                                             <WorkflowStatusButton key={os} text={os} status={status}
                                                                 onClick={() => {
-                                                                    // Drill into All Results for this repo and platform on the row's branch (or the
-                                                                    // branch filter). Omit the key when neither is set: Next serialises an undefined
-                                                                    // query value as an empty branch= param.
+                                                                    // Drill into the legacy results for this repo and platform on the row's branch
+                                                                    // (or the branch filter). Omit the key when neither is set: Next serialises an
+                                                                    // undefined query value as an empty branch= param.
                                                                     const drillBranch = branch || branchName
                                                                     router.push({
-                                                                        pathname: '/',
+                                                                        pathname: '/legacy',
                                                                         query: { repo: gitRepo, ...(drillBranch ? { branch: drillBranch } : {}), os },
                                                                     });
                                                                 }}

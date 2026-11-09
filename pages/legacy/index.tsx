@@ -15,6 +15,7 @@ import { Pager } from '../../components/Pager'
 import analytic from '../../global/mixpanel'
 import { useGetBranch, useGetGitcommit, WorkflowRunStatus } from '../../src/api/generated'
 import { DEFAULT_REPO, LEGACY_REPOS } from '../../src/legacy/repos'
+import { isCommitSha } from '../../src/regression/validate'
 import { formatDuration } from '../../utils/format'
 import { StatusToColor, StatusToHumanText } from '../workflow/[id]'
 
@@ -124,10 +125,10 @@ function GitCommitsList() {
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
-                        Workflow Results
+                        Legacy results
                     </h1>
                     <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
-                        Individual CI runs across commits, branches and platforms.
+                        Individual runs of the legacy CI across commits, branches and platforms.
                     </p>
                 </div>
                 <a
@@ -429,7 +430,8 @@ function GitCommitsList() {
                                                         Action
                                                         <FiExternalLink className="h-3 w-3" />
                                                     </Link>
-                                                    {result.branch_name && result.commit_hash && (
+                                                    {/* Regression runs are keyed by a full sha: the probe rows' short ids would only reach "Not a valid commit". */}
+                                                    {result.branch_name && isCommitSha(result.commit_hash) && (
                                                         <Link
                                                             href={`/regression/${encodeURIComponent(result.branch_name)}/${encodeURIComponent(result.commit_hash)}`}
                                                             className="text-[11px] font-medium text-ash-500 hover:text-electric hover:underline"
