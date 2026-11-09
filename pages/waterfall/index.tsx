@@ -12,6 +12,7 @@ import { DotLegend, WorkflowDots, cellState, cellStates, entryOverall } from '..
 import type { CellState } from '../../components/WorkflowDots'
 import { COMFY_REPO, useIndexHeads, useLanes } from '../../src/regression/client'
 import { DEFAULT_BRANCH, useBranchParam } from '../../src/regression/branchParam'
+import { headMayOmit, headWindowStart } from '../../src/regression/indexOrder'
 import { laneTag, orderedLaneIds } from '../../src/regression/lanes'
 import type { IndexEntry, IndexHead, LaneInfo } from '../../src/regression/types'
 import { commitPageHref, isBranchName, isPrNumber } from '../../src/regression/validate'
@@ -30,6 +31,8 @@ interface LaneColumn {
     tag: string
     status: 'loading' | 'error' | 'none' | 'ok'
     head: IndexHead | null
+    /** Sort time of the oldest run the head lists when it lists only the newest of the lane's runs, else null. */
+    windowStart: number | null
     workflows: string[]
 }
 
@@ -130,7 +133,8 @@ function mergeRows(columns: LaneColumn[]): Row[] {
                 disagreements: disagreementsOf(r.runs, columns),
             }
         })
-        .sort((a, b) => b.ts - a.ts)
+        // Newest first, ties by sha: the order the worker publishes each lane's index in.
+        .sort((a, b) => b.ts - a.ts || (a.c < b.c ? 1 : a.c > b.c ? -1 : 0))
 }
 
 function labelOf(columns: LaneColumn[], id: string): string {
@@ -209,7 +213,22 @@ function LaneCell({ branch, row, col }: { branch: string; row: Row; col: LaneCol
         )
     }
     const run = row.runs.get(col.id)
-    if (!run) return <span className={quiet}>not run</span>
+    if (!run) {
+        // The head lists only the lane's newest runs: for an older commit it cannot say,
+        // but the commit page reads the run itself.
+        if (headMayOmit(col.head, row.ts, col.windowStart)) {
+            return (
+                <Link
+                    href={commitPageHref(branch, row.c, col.id)}
+                    title={`Older than the ${col.head?.entries.length} newest runs this lane's index lists, so it may still have run here. Open the commit page to check.`}
+                    className={`${quiet} -m-1.5 inline-block rounded-lg p-1.5 hover:bg-smoke-200/70 dark:hover:bg-charcoal-700/50`}
+                >
+                    —
+                </Link>
+            )
+        }
+        return <span className={quiet}>not run</span>
+    }
     const verdict = badgeMeta(run.overall.verdict, run.overall.inherited).text
     return (
         <Link
@@ -308,6 +327,7 @@ export default function WaterfallPage() {
                   tag: laneTag(lanes, id) ?? 'lane',
                   status: !q || q.isPending ? 'loading' : q.isError ? 'error' : head ? 'ok' : 'none',
                   head,
+                  windowStart: headWindowStart(head),
                   workflows: head ? orderWorkflows(head.entries, info.goldens) : [],
               }
           })
@@ -328,6 +348,8 @@ export default function WaterfallPage() {
     const page = Math.min(paging.view === view ? paging.page : 1, totalPages)
     const pageRows = shown.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
     const perLane = Math.max(0, ...columns.map((c) => c.head?.entries.length ?? 0))
+    // Whether some lane has run more commits than its head lists, so older history exists.
+    const truncated = columns.some((c) => c.windowStart != null)
     const failed = columns.flatMap((col, i) => (col.status === 'error' ? [{ col, query: heads[i] }] : []))
     const allLoading = columns.length > 0 && columns.every((c) => c.status === 'loading')
     const anyLoading = columns.some((c) => c.status === 'loading')
@@ -454,6 +476,13 @@ export default function WaterfallPage() {
                             </span>{' '}
                             a workflow passes on one lane and fails on another at that commit; hover it for which.
                         </span>
+                        {truncated && (
+                            <span className={`text-[11px] ${dim}`}>
+                                <span className="font-semibold">—</span> older than the newest runs that lane{"'"}s
+                                index lists: it may still have run the commit. The cell opens its commit page, and All
+                                Results has the lane{"'"}s full history.
+                            </span>
+                        )}
                     </div>
                 </Surface>
                 <div className="mt-6 flex justify-center">
@@ -467,7 +496,7 @@ export default function WaterfallPage() {
                     Showing up to the newest {perLane} commits from each lane{"'"}s index head ({rows.length} in
                     all).{' '}
                     <Link href={historyHref} className="font-medium text-sapphire-700 dark:text-electric hover:underline">
-                        Older history is on All Results →
+                        {truncated ? 'Older history is on All Results →' : 'Per-lane history is on All Results →'}
                     </Link>
                 </p>
             </>

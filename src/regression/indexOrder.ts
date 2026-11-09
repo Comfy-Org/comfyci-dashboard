@@ -3,7 +3,8 @@
 // commit time is unknown), ties by sha, so re-testing an older commit never moves it in
 // the history. A head keeps only the newest entries of that order while `count` stays the
 // lane's total, so a commit missing from a long lane's head may still have run.
-import type { IndexEntry } from './types'
+import type { IndexEntry, IndexHead } from './types'
+import { monthKey } from '../../utils/time'
 
 /** The worker's sort time for an entry: commit time when known, else run time. */
 export const entryTime = (e: IndexEntry): number => e.m?.ct || e.t
@@ -24,4 +25,30 @@ export function mergeIndexEntries(head: IndexEntry[], shards: IndexEntry[]): Ind
         merged.push(e)
     }
     return merged.sort(byIndexOrder)
+}
+
+/**
+ * Where a head that lists fewer runs than the lane has stops: the sort time of its oldest
+ * entry. A commit at or before it that the head leaves out may still have run on the lane;
+ * only the monthly shards can say. Null when the head lists every run.
+ */
+export function headWindowStart(head: IndexHead | null | undefined): number | null {
+    if (!head || head.entries.length === 0 || head.count <= head.entries.length) return null
+    return Math.min(...head.entries.map(entryTime))
+}
+
+/**
+ * Whether a commit at `ts` that `head` does not list may still have run on the lane: the
+ * head stops short of the lane's history, the commit is no newer than where it stops, and
+ * the lane has runs in the commit's month. An unknown time may have run. `start` is
+ * headWindowStart(head), for callers that already have it.
+ */
+export function headMayOmit(
+    head: IndexHead | null | undefined,
+    ts: number | null | undefined,
+    start: number | null = headWindowStart(head)
+): boolean {
+    if (!head || start == null) return false
+    if (ts == null) return true
+    return ts <= start && head.shards.includes(monthKey(ts))
 }
