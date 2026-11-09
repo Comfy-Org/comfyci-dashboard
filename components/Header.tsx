@@ -63,14 +63,22 @@ export const Header = () => {
     const navRef = React.useRef<HTMLElement>(null)
 
     // Should the tabs still overflow (a very narrow screen, a large font), keep the active
-    // one in view inside the pill.
+    // one in view inside the pill. The tabs change width when the web fonts swap in, which
+    // can be after this first runs, so scroll again whenever the pill or a tab resizes.
     React.useEffect(() => {
         const nav = navRef.current
         const active = nav?.querySelector<HTMLElement>('[aria-current="page"]')
         if (!nav || !active) return
-        // Both offsets are from the sticky header, so their difference is the tab's place in the pill.
-        const right = active.offsetLeft - nav.offsetLeft + active.offsetWidth
-        nav.scrollLeft = Math.max(0, right - nav.clientWidth)
+        const keepActiveInView = () => {
+            // Both offsets are from the sticky header, so their difference is the tab's place in the pill.
+            const right = active.offsetLeft - nav.offsetLeft + active.offsetWidth
+            nav.scrollLeft = Math.max(0, right - nav.clientWidth)
+        }
+        keepActiveInView()
+        const observer = new ResizeObserver(keepActiveInView)
+        observer.observe(nav)
+        Array.from(nav.children).forEach((tab) => observer.observe(tab))
+        return () => observer.disconnect()
     }, [router.pathname])
 
     return (
