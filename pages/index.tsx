@@ -6,7 +6,8 @@ import { FetchError } from '../components/FetchError'
 import { FirstBadLine } from '../components/FirstBadLine'
 import { HistoryTable } from '../components/HistoryTable'
 import { ClearableLabel } from '../components/Labels/ClearableLabel'
-import { LaneMissingNotice, LaneSelect } from '../components/LaneSelect'
+import { LaneMissingNotice, LanePills } from '../components/LaneSelect'
+import type { LanePillStatus } from '../components/LaneSelect'
 import { Pager } from '../components/Pager'
 import { RegressionBadge, displayVerdict } from '../components/RegressionBadge'
 import { Sparkline } from '../components/Sparkline'
@@ -24,20 +25,23 @@ import {
     useRegressionSummary,
 } from '../src/regression/client'
 import type { LaneRef } from '../src/regression/client'
+import { DEFAULT_BRANCH, useBranchParam } from '../src/regression/branchParam'
+import { laneLatest } from '../src/regression/lanes'
 import type {
     FirstBad,
     IndexEntry,
     IndexHead,
     LaneInfo,
+    LanesIndex,
     LatestPointer,
     RegressionSummary,
 } from '../src/regression/types'
-import { commitPageHref, isBranchName, isCommitSha } from '../src/regression/validate'
+import { commitPageHref, isBranchName, isCommitSha, isShaPrefix } from '../src/regression/validate'
 import { orderWorkflows, slotOf } from '../src/regression/workflows'
 import { formatRelative, monthKey } from '../utils/time'
 
-const DEFAULT_BRANCH = 'master'
 const PAGE_SIZE = 25
+const NO_MONTHS: string[] = []
 const KPI_WINDOW = 30
 const SPARK_WINDOW = 60
 
@@ -372,9 +376,38 @@ function Trends({
     )
 }
 
-// Keyed on branch + lane by the page so paging and loaded shards reset with them.
-function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?: LaneInfo } }) {
-    const headQuery = useIndexHead(branch, lane.id)
+/**
+ * One lane's runs on one branch: the index head plus the monthly shards "Load older" asked
+ * for, merged newest first. The page holds it so the commit lookup searches the same runs
+ * the history shows. Nothing is fetched while `branch` is undefined.
+ */
+function useLaneEntries(branch: string | undefined, laneId: string, olderMonths: string[]) {
+    const headQuery = useIndexHead(branch, laneId)
+    const shardQueries = useIndexShards(branch ?? '', laneId, branch ? olderMonths : NO_MONTHS)
+    const entries = mergeEntries(
+        headQuery.data?.entries ?? [],
+        shardQueries.flatMap((q) => q.data?.entries ?? [])
+    )
+    return { headQuery, shardQueries, entries }
+}
+
+type LaneEntries = ReturnType<typeof useLaneEntries>
+
+// Keyed on branch + lane by the page so paging resets with them.
+function LaneHistory({
+    branch,
+    lane,
+    runs,
+    olderMonths,
+    onLoadOlder,
+}: {
+    branch: string
+    lane: LaneRef & { info?: LaneInfo }
+    runs: LaneEntries
+    olderMonths: string[]
+    onLoadOlder: (month: string) => void
+}) {
+    const { headQuery, shardQueries, entries } = runs
     const head = headQuery.data
     // Only a null result (the file is not published) means the index is absent; a failed
     // fetch is reported as such below, never read as "nothing published".
@@ -385,15 +418,9 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
     const summaryQuery = useRegressionSummary(headMissing ? branch : undefined, latest?.commit, lane)
 
     const [page, setPage] = React.useState(1)
-    const [olderMonths, setOlderMonths] = React.useState<string[]>([])
-    const shardQueries = useIndexShards(branch, lane.id, olderMonths)
     const loadingOlder = shardQueries.some((q) => q.isPending)
     const failedShard = shardQueries.find((q) => q.isError)
 
-    const entries = mergeEntries(
-        head?.entries ?? [],
-        shardQueries.flatMap((q) => q.data?.entries ?? [])
-    )
     const goldens = lane.info?.goldens
     const workflows = orderWorkflows(entries, goldens)
     const next = head ? nextShard(head, entries, olderMonths) : null
@@ -523,7 +550,7 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
                             <button
                                 type="button"
                                 disabled={loadingOlder}
-                                onClick={() => setOlderMonths((months) => [...months, next])}
+                                onClick={() => onLoadOlder(next)}
                                 className="inline-flex h-9 items-center rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 text-sm font-medium text-charcoal-800 dark:text-smoke-200 transition hover:border-electric/50 dark:hover:text-electric disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 {loadingOlder ? 'Loading…' : `Load older (${head.count - entries.length} more)`}
@@ -540,15 +567,39 @@ function LaneHistory({ branch, lane }: { branch: string; lane: LaneRef & { info?
     )
 }
 
-export default function RegressionIndexPage() {
-    const router = useRouter()
-    const [branch, setBranch] = React.useState(DEFAULT_BRANCH)
-    const [commitLookup, setCommitLookup] = React.useState('')
 
-    React.useEffect(() => {
-        const b = router.query.branch
-        if (typeof b === 'string' && b) setBranch(b)
-    }, [router.query.branch])
+/** The commit the lookup opens, or why it cannot open one yet. */
+type CommitLookup = { sha: string; hint: string | null } | { sha: null; hint: string | null }
+
+/**
+ * A full SHA opens as typed. A 7 to 39 character prefix opens when exactly one loaded run
+ * on this lane starts with it; the hint says what matched or what is missing.
+ */
+function resolveLookup(input: string, entries: IndexEntry[]): CommitLookup {
+    const query = input.trim().toLowerCase()
+    if (!query) return { sha: null, hint: null }
+    if (isCommitSha(query)) return { sha: query, hint: null }
+    if (!isShaPrefix(query)) return { sha: null, hint: 'Enter at least 7 hex characters of a commit SHA' }
+    const matches = Array.from(new Set(entries.filter((e) => e.c.startsWith(query)).map((e) => e.c)))
+    if (matches.length === 1) return { sha: matches[0], hint: matches[0].slice(0, 12) }
+    if (matches.length === 0) return { sha: null, hint: 'No loaded run on this lane starts with that' }
+    return { sha: null, hint: `${matches.length} loaded runs match; type more characters` }
+}
+
+/** A lane pill's dot: the lane's latest run on the branch, as lanes.json records it. */
+function latestStatus(lanes: LanesIndex, laneId: string, branch: string): LanePillStatus {
+    const latest = laneLatest(lanes.lanes[laneId], branch)
+    if (!latest) return { kind: 'missing', text: `no runs on ${branch}` }
+    return {
+        kind: latest.overall === 'pass' ? 'pass' : 'fail',
+        text: `latest run on ${branch}: ${latest.overall} at ${latest.commit.slice(0, 7)}, ${formatRelative(latest.run_ts)}`,
+    }
+}
+
+export default function AllResultsPage() {
+    const router = useRouter()
+    const [branch, setBranch] = useBranchParam()
+    const [commitLookup, setCommitLookup] = React.useState('')
 
     const laneParam = typeof router.query.lane === 'string' ? router.query.lane : undefined
     const lanesQuery = useLanes()
@@ -556,29 +607,40 @@ export default function RegressionIndexPage() {
     const ready = router.isReady && !lanesQuery.isPending
     // ?branch= and the inputs are free text: only well-formed values are fetched or linked.
     const validBranch = isBranchName(branch)
-    const lookupSha = commitLookup.trim().toLowerCase()
-    const canLookup = validBranch && isCommitSha(lookupSha)
-    const selectLane = (id: string) =>
-        router.replace(
-            { pathname: router.pathname, query: { ...router.query, lane: id } },
-            undefined,
-            { shallow: true }
-        )
+
+    // Months "Load older" fetched, for this branch and lane only: switching either starts
+    // again from the index head.
+    const view = `${branch}:${lane.id}`
+    const [older, setOlder] = React.useState<{ view: string; months: string[] }>({ view: '', months: [] })
+    const olderMonths = older.view === view ? older.months : NO_MONTHS
+    const runs = useLaneEntries(
+        ready && !lanesQuery.isError && validBranch ? branch : undefined,
+        lane.id,
+        olderMonths
+    )
+    const lookup = resolveLookup(commitLookup, validBranch ? runs.entries : [])
 
     return (
         <div className="pt-8">
-            <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
-                        GPU Regression
-                    </h1>
-                    <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
-                        Curated fixed-seed workflows run on serverless GPUs for every push, compared
-                        against golden baselines and the previous run.
-                    </p>
-                </div>
-                <LaneSelect lanes={lanesQuery.data} value={lane.id} onChange={selectLane} />
+            <div className="mb-4">
+                <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
+                    All Results
+                </h1>
+                <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
+                    GPU regression results for every ComfyUI commit: fixed-seed workflows run on serverless RTX
+                    4090s and are compared with golden outputs, with one history per lane.
+                </p>
             </div>
+
+            <LanePills
+                className="mb-6"
+                lanes={lanesQuery.data}
+                value={lane.id}
+                hrefFor={(id) => ({ pathname: router.pathname, query: { ...router.query, lane: id } })}
+                statusFor={(id, lanes) => latestStatus(lanes, id, branch)}
+                inPlace
+                caption
+            />
 
             <Surface className="mb-6 p-4">
                 <SectionTitle className="mb-3">Lookup</SectionTitle>
@@ -592,14 +654,15 @@ export default function RegressionIndexPage() {
                     />
                     <ClearableLabel
                         id="regression-commit"
-                        label="Commit SHA"
+                        label="Commit SHA or prefix"
+                        title="A full SHA, or at least 7 characters matching one run loaded on this lane"
                         value={commitLookup}
                         onChange={setCommitLookup}
                         onClear={() => setCommitLookup('')}
                     />
-                    {canLookup ? (
+                    {validBranch && lookup.sha ? (
                         <Link
-                            href={commitPageHref(branch, lookupSha, lane.id)}
+                            href={commitPageHref(branch, lookup.sha, lane.id)}
                             className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-electric"
                         >
                             Open commit
@@ -607,10 +670,14 @@ export default function RegressionIndexPage() {
                     ) : (
                         <span
                             aria-disabled
-                            title={commitLookup ? 'Enter a full 40-character commit SHA' : undefined}
                             className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-ash-500/50"
                         >
                             Open commit
+                        </span>
+                    )}
+                    {lookup.hint && (
+                        <span className="min-w-0 break-words font-mono text-xs text-ash-500 dark:text-smoke-800">
+                            {lookup.hint}
                         </span>
                     )}
                 </div>
@@ -639,7 +706,14 @@ export default function RegressionIndexPage() {
                     {lane.missing && (
                         <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
                     )}
-                    <LaneHistory key={`${branch}:${lane.id}`} branch={branch} lane={lane} />
+                    <LaneHistory
+                        key={view}
+                        branch={branch}
+                        lane={lane}
+                        runs={runs}
+                        olderMonths={olderMonths}
+                        onLoadOlder={(month) => setOlder({ view, months: [...olderMonths, month] })}
+                    />
                 </>
             )}
         </div>
