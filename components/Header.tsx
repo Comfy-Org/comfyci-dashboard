@@ -6,9 +6,13 @@ import ThemeToggler from "./ThemeToggler"
 const NAV = [
     { href: "/", label: "All Results" },
     { href: "/waterfall", label: "Waterfall" },
-    { href: "/regression", label: "Regression" },
     { href: "/frontend", label: "Frontend" },
 ]
+
+// All Results also owns the commit pages under /regression; the legacy pages and the
+// legacy workflow page belong to no tab.
+const isActivePath = (href: string, pathname: string) =>
+    href === "/" ? pathname === "/" || pathname.startsWith("/regression") : pathname.startsWith(href)
 
 const ComfyMark = () => (
     <span className="flex items-center gap-3">
@@ -37,8 +41,7 @@ const ComfyMark = () => (
 
 export const Header = () => {
     const router = useRouter()
-    const isActive = (href: string) =>
-        href === "/" ? router.pathname === "/" : router.pathname.startsWith(href)
+    const isActive = (href: string) => isActivePath(href, router.pathname)
 
     return (
         <header className="sticky top-0 z-40 border-b border-smoke-300 dark:border-charcoal-400/60 bg-smoke-100/80 dark:bg-ink-900/80 backdrop-blur-md">
@@ -47,7 +50,7 @@ export const Header = () => {
                     <ComfyMark />
                 </Link>
 
-                {/* min-w-0 + overflow-x-auto: on a phone the four links scroll inside the pill
+                {/* min-w-0 + overflow-x-auto: on a phone the links scroll inside the pill
                     instead of pushing the page wider than the viewport. */}
                 <nav className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 p-1">
                     {NAV.map(({ href, label }) => {
