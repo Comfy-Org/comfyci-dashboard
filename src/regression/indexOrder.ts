@@ -52,3 +52,15 @@ export function headMayOmit(
     if (ts == null) return true
     return ts <= start && head.shards.includes(monthKey(ts))
 }
+
+/**
+ * The monthly shards that hold a commit at `ts` and its neighbours on the lane: its own
+ * month when the lane has runs in it, and the nearest newer and older months that do.
+ */
+export function shardsAround(head: IndexHead, ts: number): string[] {
+    const month = monthKey(ts)
+    const months = [...head.shards].sort()
+    const newer = months.find((m) => m > month)
+    const older = [...months].reverse().find((m) => m < month)
+    return [newer, months.includes(month) ? month : undefined, older].filter((m): m is string => !!m)
+}
