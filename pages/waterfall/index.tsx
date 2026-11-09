@@ -64,6 +64,14 @@ interface Row {
 
 type Filter = 'all' | 'red' | 'disagree'
 
+// The filter and page live in the URL (?show=red|disagree, ?page=n, defaults left out), so
+// Back from a commit page and a shared link both return to the same view.
+const filterOf = (show: unknown): Filter => (show === 'red' || show === 'disagree' ? show : 'all')
+const pageOf = (page: unknown): number =>
+    typeof page === 'string' && /^[1-9][0-9]{0,4}$/.test(page) ? Number(page) : 1
+// A new branch starts again at page 1.
+const BRANCH_RESETS = ['page']
+
 const FILTERS: { id: Filter; label: string; title: string }[] = [
     { id: 'all', label: 'All commits', title: 'Every commit any lane tested' },
     { id: 'red', label: 'Any lane red', title: 'At least one lane has a regression or an execution error' },
@@ -304,11 +312,16 @@ function FilterBar({
 
 export default function WaterfallPage() {
     const router = useRouter()
-    const [branch, setBranch] = useBranchParam()
-    const [filter, setFilter] = React.useState<Filter>('all')
-    // Paging restarts whenever the branch or the filter changes.
-    const view = `${branch}:${filter}`
-    const [paging, setPaging] = React.useState({ view: '', page: 1 })
+    const { branch, field: branchField, setBranch } = useBranchParam(BRANCH_RESETS)
+    const filter = filterOf(router.query.show)
+    const setView = (show: Filter, page: number) => {
+        const query = { ...router.query }
+        delete query.show
+        delete query.page
+        if (show !== 'all') query.show = show
+        if (page > 1) query.page = String(page)
+        router.replace({ pathname: router.pathname, query }, undefined, { shallow: true, scroll: false })
+    }
 
     const lanesQuery = useLanes()
     const lanes = lanesQuery.data
@@ -345,7 +358,7 @@ export default function WaterfallPage() {
             ? rows.filter((r) => r.disagreements.length > 0)
             : rows
     const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
-    const page = Math.min(paging.view === view ? paging.page : 1, totalPages)
+    const page = Math.min(pageOf(router.query.page), totalPages)
     const pageRows = shown.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
     const perLane = Math.max(0, ...columns.map((c) => c.head?.entries.length ?? 0))
     // Whether some lane has run more commits than its head lists, so older history exists.
@@ -422,10 +435,8 @@ export default function WaterfallPage() {
                     <FilterBar
                         value={filter}
                         counts={counts}
-                        onChange={(f) => {
-                            setFilter(f)
-                            setPaging({ view: `${branch}:${f}`, page: 1 })
-                        }}
+                        // A new filter starts again at page 1.
+                        onChange={(f) => setView(f, 1)}
                     />
                 </div>
                 <Surface className="overflow-hidden">
@@ -489,7 +500,7 @@ export default function WaterfallPage() {
                     <Pager
                         currentPage={page}
                         totalPages={totalPages}
-                        onPageChange={(p) => setPaging({ view, page: p })}
+                        onPageChange={(p) => setView(filter, p)}
                     />
                 </div>
                 <p className={`mt-2 text-center text-[11px] ${dim}`}>
@@ -518,7 +529,7 @@ export default function WaterfallPage() {
                 <ClearableLabel
                     id="waterfall-branch"
                     label="Branch"
-                    value={branch}
+                    value={branchField}
                     onChange={setBranch}
                     onClear={() => setBranch(DEFAULT_BRANCH)}
                 />

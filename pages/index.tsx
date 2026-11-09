@@ -587,7 +587,7 @@ function latestStatus(lanes: LanesIndex, laneId: string, branch: string): LanePi
 
 export default function AllResultsPage() {
     const router = useRouter()
-    const [branch, setBranch] = useBranchParam()
+    const { branch, field: branchField, setBranch } = useBranchParam()
     const [commitLookup, setCommitLookup] = React.useState('')
 
     const laneParam = typeof router.query.lane === 'string' ? router.query.lane : undefined
@@ -637,7 +637,7 @@ export default function AllResultsPage() {
                     <ClearableLabel
                         id="regression-branch"
                         label="Branch"
-                        value={branch}
+                        value={branchField}
                         onChange={setBranch}
                         onClear={() => setBranch(DEFAULT_BRANCH)}
                     />
