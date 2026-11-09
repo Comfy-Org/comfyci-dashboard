@@ -13,6 +13,8 @@ export interface LanePillStatus {
     text: string
     /** A quiet word after the label, e.g. "not run". */
     note?: string
+    /** Dim the pill (it stays a link): the lane has nothing to show here. */
+    muted?: boolean
 }
 
 /**
@@ -58,6 +60,7 @@ export const LanePills: React.FC<{
                                 active
                                     ? 'border-electric bg-electric text-ink-900 shadow-sm'
                                     : 'border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 text-ash-500 dark:text-smoke-700 hover:border-electric/50 hover:text-charcoal-800 dark:hover:text-white',
+                                status.muted && !active ? 'opacity-60 hover:opacity-100' : '',
                             ].join(' ')}
                         >
                             <WorkflowDot kind={status.kind} />

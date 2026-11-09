@@ -174,8 +174,9 @@ function WorkflowCard({
         // scroll-mt clears the sticky header when a #wf-<id> link lands on the card.
         <Surface id={workflowAnchor(result.workflow_id)} className="scroll-mt-24 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-bold text-charcoal-800 dark:text-white">
+                {/* Wraps and breaks: a long workflow id beside its badge must not widen a phone screen. */}
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                    <h3 className="break-all text-lg font-bold text-charcoal-800 dark:text-white">
                         {result.workflow_id}
                     </h3>
                     <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
@@ -454,7 +455,7 @@ function laneVerdict(
     if (!head || head.isPending) return { kind: 'missing', text: "loading this lane's runs" }
     if (head.isError) return { kind: 'missing', text: "this lane's run index could not be loaded" }
     const entry = head.data?.entries.find((e) => e.c === commit)
-    if (!entry) return { kind: 'missing', text: `not run at ${sha}`, note: 'not run' }
+    if (!entry) return { kind: 'missing', text: `not run at ${sha}`, note: 'not run', muted: true }
     const overall = entryOverall(entry, info.goldens)
     return { kind: dotKind(overall), text: `${badgeMeta(overall.verdict, overall.inherited).text} at ${sha}` }
 }
@@ -483,11 +484,25 @@ export default function RegressionCommitPage() {
     const laneIds = ready ? orderedLaneIds(lanesQuery.data) : []
     const laneHeads = useIndexHeads(laneIds.map((id) => ({ branch: branch ?? '', lane: id })))
 
-    // A #wf-<id> link lands before the cards exist; scroll to the card once they render.
+    // A #wf-<id> link lands before the cards exist: scroll to the card once they render,
+    // and keep it in view while the cards above load their records and images, until the
+    // reader scrolls or a few seconds pass.
     React.useEffect(() => {
-        if (!summary) return
-        const target = window.location.hash.slice(1)
-        if (target) document.getElementById(target)?.scrollIntoView()
+        const target = summary ? window.location.hash.slice(1) : ''
+        const card = target ? document.getElementById(target) : null
+        if (!card) return
+        card.scrollIntoView()
+        const observer = new ResizeObserver(() => card.scrollIntoView())
+        observer.observe(document.body)
+        const release = () => observer.disconnect()
+        const timer = window.setTimeout(release, 5000)
+        const events = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const
+        events.forEach((e) => window.addEventListener(e, release, { once: true, passive: true }))
+        return () => {
+            release()
+            window.clearTimeout(timer)
+            events.forEach((e) => window.removeEventListener(e, release))
+        }
     }, [summary])
 
     if (router.isReady && (!validBranch || !validCommit)) {
