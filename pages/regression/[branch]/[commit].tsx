@@ -29,6 +29,7 @@ import {
 } from '../../../src/regression/client'
 import type { LaneRef } from '../../../src/regression/client'
 import { allResultsHref } from '../../../src/regression/branchParam'
+import { byIndexOrder } from '../../../src/regression/indexOrder'
 import { isRetiredLane, orderedLaneIds } from '../../../src/regression/lanes'
 import type {
     CommitMeta,
@@ -348,9 +349,9 @@ function WorkflowCard({
 const stepClass =
     'inline-flex h-8 items-center gap-1 rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-2.5 text-xs font-medium'
 
-/** The newer and older runs next to `commit` in a lane's index head, newest first as the history lists them. */
+/** The newer and older runs next to `commit` in a lane's index head, in the order the history lists them. */
 function neighbours(head: IndexHead | null | undefined, commit: string) {
-    const entries = head ? [...head.entries].sort((a, b) => b.t - a.t) : []
+    const entries = head ? [...head.entries].sort(byIndexOrder) : []
     const at = entries.findIndex((e) => e.c === commit)
     return {
         found: at !== -1,

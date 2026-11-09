@@ -26,6 +26,7 @@ import {
 } from '../src/regression/client'
 import type { LaneRef } from '../src/regression/client'
 import { DEFAULT_BRANCH, useBranchParam } from '../src/regression/branchParam'
+import { entryTime, mergeIndexEntries } from '../src/regression/indexOrder'
 import { laneLatest } from '../src/regression/lanes'
 import type {
     FirstBad,
@@ -45,23 +46,11 @@ const NO_MONTHS: string[] = []
 const KPI_WINDOW = 30
 const SPARK_WINDOW = 60
 
-/** Head entries plus any loaded monthly shards, de-duplicated and newest first. */
-function mergeEntries(head: IndexEntry[], shards: IndexEntry[]): IndexEntry[] {
-    const seen = new Set<string>()
-    const merged: IndexEntry[] = []
-    for (const e of [...head, ...shards]) {
-        const key = `${e.c}:${e.t}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        merged.push(e)
-    }
-    return merged.sort((a, b) => b.t - a.t)
-}
-
 /** The next monthly shard to fetch, or null when everything the index counts is loaded. */
 function nextShard(head: IndexHead, entries: IndexEntry[], loaded: string[]): string | null {
     if (entries.length === 0 || entries.length >= head.count) return null
-    const oldest = monthKey(entries[entries.length - 1].t)
+    // The worker files each run under the month of its commit time.
+    const oldest = monthKey(entryTime(entries[entries.length - 1]))
     const shards = [...head.shards].sort().reverse()
     // The head index may end part-way through a month: fetch that month's full shard first.
     if (shards.includes(oldest) && !loaded.includes(oldest)) return oldest
@@ -384,7 +373,7 @@ function Trends({
 function useLaneEntries(branch: string | undefined, laneId: string, olderMonths: string[]) {
     const headQuery = useIndexHead(branch, laneId)
     const shardQueries = useIndexShards(branch ?? '', laneId, branch ? olderMonths : NO_MONTHS)
-    const entries = mergeEntries(
+    const entries = mergeIndexEntries(
         headQuery.data?.entries ?? [],
         shardQueries.flatMap((q) => q.data?.entries ?? [])
     )
