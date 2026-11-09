@@ -652,7 +652,7 @@ export default function AllResultsPage() {
                     {validBranch && lookup.sha ? (
                         <Link
                             href={commitPageHref(branch, lookup.sha, lane.id)}
-                            className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-electric"
+                            className="rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-sapphire-700 dark:hover:text-electric"
                         >
                             Open commit
                         </Link>

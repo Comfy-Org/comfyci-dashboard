@@ -18,7 +18,7 @@ import type {
 import { commitPageHref, workflowAnchor } from '../src/regression/validate'
 import { shortDate } from '../utils/time'
 
-const extLink = 'hover:text-electric hover:underline'
+const extLink = 'hover:text-sapphire-700 dark:hover:text-electric hover:underline'
 
 // "MSE 3.44 > 2.0" style clauses, one per metric, flagged when the threshold is crossed.
 function metricClauses(m: ComparisonMetrics, t: Thresholds | null): { text: string; bad: boolean }[] {

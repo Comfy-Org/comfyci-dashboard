@@ -4,7 +4,7 @@ import type { CommitMeta } from '../src/regression/types'
 import { isCommitSha, isPrNumber } from '../src/regression/validate'
 import { shortDate } from '../utils/time'
 
-const linkClass = 'hover:text-electric hover:underline'
+const linkClass = 'hover:text-sapphire-700 dark:hover:text-electric hover:underline'
 
 /**
  * Subject, author, commit date, PR and parent links for the commit under test. The PR

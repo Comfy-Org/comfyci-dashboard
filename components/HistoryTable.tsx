@@ -71,7 +71,7 @@ function HistoryRow({
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Commits between the previous tested commit and this one"
-                            className="text-[11px] text-ash-500 hover:text-electric hover:underline"
+                            className="text-[11px] text-ash-500 hover:text-sapphire-700 dark:hover:text-electric hover:underline"
                         >
                             +{entry.range.n} commits
                         </a>
@@ -96,7 +96,7 @@ function HistoryRow({
                                 href={`${COMFY_REPO}/pull/${pr}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="hover:text-electric hover:underline"
+                                className="hover:text-sapphire-700 dark:hover:text-electric hover:underline"
                             >
                                 #{pr}
                             </a>

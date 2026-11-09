@@ -24,7 +24,7 @@ function CopyableCommand({ command }: { command: string }) {
             <button
                 type="button"
                 onClick={copy}
-                className="absolute right-2 top-2 rounded-md border border-smoke-300 dark:border-charcoal-400/60 bg-white dark:bg-charcoal-700 px-2 py-0.5 text-[11px] font-semibold text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-electric"
+                className="absolute right-2 top-2 rounded-md border border-smoke-300 dark:border-charcoal-400/60 bg-white dark:bg-charcoal-700 px-2 py-0.5 text-[11px] font-semibold text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-sapphire-700 dark:hover:text-electric"
             >
                 {copied ? 'Copied' : 'Copy'}
             </button>

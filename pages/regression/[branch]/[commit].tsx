@@ -197,7 +197,7 @@ function WorkflowCard({
                             prev:{' '}
                             <Link
                                 href={commitPageHref(branch, result.previous_commit, lane.id)}
-                                className="font-mono hover:text-electric hover:underline"
+                                className="font-mono hover:text-sapphire-700 dark:hover:text-electric hover:underline"
                             >
                                 {result.previous_commit.slice(0, 7)}
                             </Link>
@@ -396,7 +396,7 @@ function StepLink({
         <Link
             href={commitPageHref(branch, entry.c, laneId)}
             title={`${entry.c.slice(0, 7)}${entry.m?.s ? ` · ${entry.m.s}` : ''}`}
-            className={`${stepClass} text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-electric`}
+            className={`${stepClass} text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-sapphire-700 dark:hover:text-electric`}
         >
             {children}
         </Link>
@@ -429,7 +429,7 @@ function CommitNav({
                 aria-label="Breadcrumb"
                 className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-ash-500 dark:text-smoke-800"
             >
-                <Link href={allResultsHref(laneId, branch)} className="font-medium hover:text-electric hover:underline">
+                <Link href={allResultsHref(laneId, branch)} className="font-medium hover:text-sapphire-700 dark:hover:text-electric hover:underline">
                     All Results
                 </Link>
                 <span aria-hidden>/</span>
@@ -587,7 +587,7 @@ export default function RegressionCommitPage() {
                             ? 'Regression runs are looked up by a full 40-character lowercase commit SHA.'
                             : 'Branch names may use letters, digits, ".", "_", "-" and "/".'}
                     </span>
-                    <Link href="/" className="mt-2 text-sm text-electric hover:underline">
+                    <Link href="/" className="mt-2 text-sm text-sapphire-700 dark:text-electric hover:underline">
                         Back to All Results
                     </Link>
                 </Surface>
@@ -702,7 +702,7 @@ export default function RegressionCommitPage() {
                             .
                         </span>
                     )}
-                    <Link href={allResultsHref(lane.id, branch)} className="mt-2 text-sm text-electric hover:underline">
+                    <Link href={allResultsHref(lane.id, branch)} className="mt-2 text-sm text-sapphire-700 dark:text-electric hover:underline">
                         Back to All Results
                     </Link>
                 </Surface>
