@@ -27,7 +27,9 @@ export function useBranchParam(resetParams: string[] = NO_PARAMS): {
     const router = useRouter()
     const param =
         typeof router.query.branch === 'string' && router.query.branch ? router.query.branch : DEFAULT_BRANCH
-    const [field, setField] = React.useState(DEFAULT_BRANCH)
+    // Starts from the URL, so a link inside the app never shows master for one render. On a
+    // hard load the query is still empty here, as in the prerender, so hydration matches.
+    const [field, setField] = React.useState(param)
 
     // Follows the URL (first load, back and forward, a link to the bare page). A value this
     // hook just wrote comes back unchanged, and an emptied field stays empty for master.
