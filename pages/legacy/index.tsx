@@ -14,7 +14,7 @@ import { BrandSelect } from '../../components/Inputs'
 import { Pager } from '../../components/Pager'
 import analytic from '../../global/mixpanel'
 import { useGetBranch, useGetGitcommit, WorkflowRunStatus } from '../../src/api/generated'
-import { DEFAULT_REPO, LEGACY_REPOS } from '../../src/legacy/repos'
+import { DEFAULT_REPO, LEGACY_REPOS, repoOrDefault } from '../../src/legacy/repos'
 import { formatDuration } from '../../utils/format'
 import { StatusToColor, StatusToHumanText } from '../workflow/[id]'
 
@@ -80,7 +80,7 @@ function GitCommitsList() {
         const query = router.query;
         // Ensure all parameters are treated as strings, even if they are arrays
         setFilterOS(typeof query.os === 'string' ? query.os : query.os?.[0] || 'Select OS');
-        setRepoFilter(typeof query.repo === 'string' ? query.repo : query.repo?.[0] || DEFAULT_REPO);
+        setRepoFilter(repoOrDefault(typeof query.repo === 'string' ? query.repo : query.repo?.[0]));
         setBranchFilter(typeof query.branch === 'string' ? query.branch : query.branch?.[0] || 'Select Branch');
         setCommitId(typeof query.commitId === 'string' ? query.commitId : query.commitId?.[0] || '');
         setWorkflowFilter(typeof query.workflowName === 'string' ? query.workflowName : query.workflowName?.[0] || '');
@@ -94,7 +94,7 @@ function GitCommitsList() {
     React.useEffect(() => {
         const repo = router.query.repo;
         if (typeof repo === 'string') {
-            setRepoFilter(repo);
+            setRepoFilter(repoOrDefault(repo));
         }
     }, [router.query.repo]);
 
@@ -131,7 +131,7 @@ function GitCommitsList() {
                     </p>
                 </div>
                 <a
-                    href={`https://github.com/${repoFilter}`}
+                    href={`https://github.com/${encodeURI(repoFilter)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-charcoal-900 dark:hover:text-electric"
@@ -164,7 +164,7 @@ function GitCommitsList() {
                         id="repo-select"
                         value={repoFilter}
                         onChange={(e) => {
-                            setRepoFilter(e.target.value);
+                            setRepoFilter(repoOrDefault(e.target.value));
                             analytic.track('Change Repo Filter', { repo: e.target.value });
                             setCurrentPage(1);
                         }}
@@ -315,7 +315,7 @@ function GitCommitsList() {
                                                     </Link>
                                                     <button
                                                         title="Filter by this workflow"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
+                                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
                                                         onClick={() => {
                                                             setWorkflowFilter(result.workflow_name || '')
                                                             setCurrentPage(1)
@@ -347,7 +347,7 @@ function GitCommitsList() {
                                                     </Link>
                                                     <button
                                                         title="Filter by this commit"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
+                                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
                                                         onClick={() => {
                                                             setCommitId(result.commit_id || '')
                                                             setCurrentPage(1)
@@ -377,7 +377,7 @@ function GitCommitsList() {
                                                     </span>
                                                     <button
                                                         title="Filter by this OS"
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
+                                                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity rounded-md p-1 text-ash-500 hover:bg-smoke-300 dark:hover:bg-charcoal-400/60 hover:text-electric"
                                                         onClick={() => {
                                                             setFilterOS(result.operating_system || '')
                                                             setCurrentPage(1)

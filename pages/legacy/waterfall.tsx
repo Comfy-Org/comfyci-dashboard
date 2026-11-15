@@ -9,7 +9,7 @@ import { WorkflowStatusButton } from '../../components/StatusButton'
 import { Surface, SectionTitle } from '../../components/Surface'
 import { BrandSelect } from '../../components/Inputs'
 import { Pager } from '../../components/Pager'
-import { DEFAULT_REPO, LEGACY_REPOS } from '../../src/legacy/repos'
+import { DEFAULT_REPO, LEGACY_REPOS, repoOrDefault } from '../../src/legacy/repos'
 
 function formatTimestamp(ts?: string): string {
     if (!ts) return ''
@@ -38,7 +38,7 @@ function GitCommitsList() {
     React.useEffect(() => {
         const repo = router.query.repo;
         if (typeof repo === 'string') {
-            setRepoFilter(repo);
+            setRepoFilter(repoOrDefault(repo));
         }
     }, [router.query.repo]);
 
@@ -84,7 +84,7 @@ function GitCommitsList() {
                     </p>
                 </div>
                 <a
-                    href={`https://github.com/${repoFilter}`}
+                    href={`https://github.com/${encodeURI(repoFilter)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 text-sm font-medium text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-charcoal-900 dark:hover:text-electric"
@@ -106,7 +106,7 @@ function GitCommitsList() {
                         id="repo-select"
                         value={repoFilter}
                         onChange={(e) => {
-                            const repo = e.target.value
+                            const repo = repoOrDefault(e.target.value)
                             setRepoFilter(repo)
                             setCurrentPage(1)
                             router.push({ pathname: router.pathname, query: { ...router.query, repo } }, undefined, { shallow: true })
@@ -180,7 +180,7 @@ function GitCommitsList() {
                                                 <td className="px-5 py-4 align-top">
                                                     <div className="flex items-center gap-2">
                                                         <Link
-                                                            href={`https://github.com/${gitRepo}/commit/${commitHash}`}
+                                                            href={`https://github.com/${encodeURI(gitRepo)}/commit/${commitHash}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="rounded bg-smoke-200 dark:bg-charcoal-700 px-1.5 py-0.5 font-mono text-xs text-sapphire-700 dark:text-plum-300 hover:underline"
