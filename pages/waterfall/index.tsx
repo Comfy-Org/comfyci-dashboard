@@ -454,7 +454,7 @@ export default function WaterfallPage() {
                 <Surface className="overflow-hidden">
                     {/* w-max: the table keeps its columns and scrolls inside the card on a phone. */}
                     <div className="overflow-x-auto scrollbar-thin">
-                        <table className="w-max min-w-full text-left text-sm">
+                        <table aria-labelledby="waterfall-title" className="w-max min-w-full text-left text-sm">
                             <thead>
                                 <tr className="border-b border-smoke-300 dark:border-charcoal-400/60 text-[11px] uppercase tracking-wider text-ash-500 dark:text-smoke-800">
                                     <th className={`${cellPad} align-bottom font-semibold`}>Commit</th>
@@ -467,9 +467,14 @@ export default function WaterfallPage() {
                                 {pageRows.length === 0 && (
                                     <tr>
                                         <td colSpan={columns.length + 1} className={`px-4 py-10 text-center text-sm ${dim}`}>
-                                            {filter === 'red'
+                                            {/* No verdict while a lane is still loading. */}
+                                            {anyLoading
+                                                ? 'Waiting for the other lanes to load…'
+                                                : filter === 'red'
                                                 ? 'No lane is red on any commit shown.'
-                                                : 'The lanes agree on every commit shown.'}
+                                                : filter === 'disagree'
+                                                ? 'The lanes agree on every commit shown.'
+                                                : 'No commits to show.'}
                                         </td>
                                     </tr>
                                 )}
@@ -530,7 +535,7 @@ export default function WaterfallPage() {
         <div className="pt-8">
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
+                    <h1 id="waterfall-title" className="text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
                         Waterfall
                     </h1>
                     <p className={`mt-1 text-sm ${dim}`}>
