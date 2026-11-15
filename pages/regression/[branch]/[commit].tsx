@@ -3,31 +3,47 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import React from 'react'
-import { FiExternalLink } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiExternalLink } from 'react-icons/fi'
 import { CommitMetaChip } from '../../../components/CommitMetaChip'
 import { FetchError } from '../../../components/FetchError'
-import { LaneMissingNotice, LaneTabs } from '../../../components/LaneSelect'
+import { LaneMissingNotice, LanePills } from '../../../components/LaneSelect'
+import type { LanePillStatus } from '../../../components/LaneSelect'
 import { MetricTable } from '../../../components/MetricTable'
-import { RegressionBadge, displayVerdict, overallDisplay } from '../../../components/RegressionBadge'
+import { RegressionBadge, badgeMeta, displayVerdict, overallDisplay } from '../../../components/RegressionBadge'
 import type { DisplayState } from '../../../components/RegressionBadge'
 import { ReblessCallout } from '../../../components/ReblessCallout'
 import { RegressionSummaryHeader } from '../../../components/RegressionSummaryHeader'
 import { Surface, SectionTitle } from '../../../components/Surface'
+import { dotKind, entryOverall } from '../../../components/WorkflowDots'
 import {
     COMFY_REPO,
     figureUrl,
     outputUrl,
     resolveLane,
     useIndexHead,
+    useIndexHeads,
+    useIndexShards,
     useLanes,
     useNoiseFloor,
     useRegressionSummary,
     useRunRecord,
 } from '../../../src/regression/client'
 import type { LaneRef } from '../../../src/regression/client'
+import { allResultsHref } from '../../../src/regression/branchParam'
+import {
+    entryTime,
+    headMayOmit,
+    headWindowStart,
+    mergeIndexEntries,
+    shardsAround,
+} from '../../../src/regression/indexOrder'
+import { isRetiredLane, orderedLaneIds } from '../../../src/regression/lanes'
 import type {
     CommitMeta,
+    IndexEntry,
+    IndexHead,
     IndexWorkflowCell,
+    LaneInfo,
     RunEnv,
     WorkflowRegressionResult,
 } from '../../../src/regression/types'
@@ -37,6 +53,7 @@ import {
     isCommitSha,
     isPathSegment,
     isWorkflowId,
+    workflowAnchor,
 } from '../../../src/regression/validate'
 
 function Figure({ src, caption }: { src: string; caption: string }) {
@@ -105,6 +122,7 @@ function WorkflowCard({
     result,
     state,
     summaryEnv,
+    retired,
 }: {
     branch: string
     commit: string
@@ -112,6 +130,8 @@ function WorkflowCard({
     result: WorkflowRegressionResult
     state: DisplayState
     summaryEnv?: RunEnv | null
+    /** The lane no longer runs, so there is nothing to re-bless on it. */
+    retired: boolean
 }) {
     const { data: run } = useRunRecord(branch, commit, result.workflow_id, lane)
     const { data: prevRun } = useRunRecord(
@@ -159,10 +179,12 @@ function WorkflowCard({
         linkable && result.vs_previous && !result.vs_previous.identical && !result.vs_previous.error
 
     return (
-        <Surface className="p-5">
+        // scroll-mt clears the sticky header when a #wf-<id> link lands on the card.
+        <Surface id={workflowAnchor(result.workflow_id)} className="scroll-mt-24 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-bold text-charcoal-800 dark:text-white">
+                {/* Wraps and breaks: a long workflow id beside its badge must not widen a phone screen. */}
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
+                    <h3 className="break-all text-lg font-bold text-charcoal-800 dark:text-white">
                         {result.workflow_id}
                     </h3>
                     <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
@@ -175,7 +197,7 @@ function WorkflowCard({
                             prev:{' '}
                             <Link
                                 href={commitPageHref(branch, result.previous_commit, lane.id)}
-                                className="font-mono hover:text-electric hover:underline"
+                                className="font-mono hover:text-sapphire-700 dark:hover:text-electric hover:underline"
                             >
                                 {result.previous_commit.slice(0, 7)}
                             </Link>
@@ -261,7 +283,7 @@ function WorkflowCard({
                 />
             </div>
 
-            {state.verdict === 'fail' && (
+            {state.verdict === 'fail' && !retired && (
                 <ReblessCallout workflowId={result.workflow_id} commit={commit} lane={lane} />
             )}
 
@@ -331,6 +353,153 @@ function WorkflowCard({
     )
 }
 
+const NO_MONTHS: string[] = []
+
+const stepClass =
+    'inline-flex h-8 items-center gap-1 rounded-lg border border-smoke-300 dark:border-charcoal-400/60 px-2.5 text-xs font-medium'
+
+/**
+ * The newer and older runs next to `commit` among a lane's runs (in index order). A commit
+ * the lane did not run sits where its commit time `ts` puts it; with no time it has no place.
+ */
+function neighbours(runs: IndexEntry[], commit: string, ts: number | null) {
+    const at = runs.findIndex((e) => e.c === commit)
+    if (at !== -1) return { placed: true, newer: runs[at - 1] ?? null, older: runs[at + 1] ?? null }
+    if (ts == null) return { placed: false, newer: null, older: null }
+    // The first run older than the commit, by the index's order (time, then sha).
+    const next = runs.findIndex((e) => entryTime(e) < ts || (entryTime(e) === ts && e.c < commit))
+    const olderAt = next === -1 ? runs.length : next
+    return { placed: true, newer: runs[olderAt - 1] ?? null, older: runs[olderAt] ?? null }
+}
+
+/** One step through the lane's history; a disabled button when there is nothing that way. */
+function StepLink({
+    entry,
+    branch,
+    laneId,
+    disabledTitle,
+    children,
+}: React.PropsWithChildren<{
+    entry: IndexEntry | null
+    branch: string
+    laneId: string
+    disabledTitle: string
+}>) {
+    if (!entry) {
+        return (
+            <span aria-disabled title={disabledTitle} className={`${stepClass} cursor-not-allowed text-ash-500/50`}>
+                {children}
+            </span>
+        )
+    }
+    return (
+        <Link
+            href={commitPageHref(branch, entry.c, laneId)}
+            title={`${entry.c.slice(0, 7)}${entry.m?.s ? ` · ${entry.m.s}` : ''}`}
+            className={`${stepClass} text-charcoal-800 dark:text-smoke-200 hover:border-electric/50 hover:text-sapphire-700 dark:hover:text-electric`}
+        >
+            {children}
+        </Link>
+    )
+}
+
+/** Breadcrumb back to All Results on this lane and branch, plus newer and older commits on the lane. */
+function CommitNav({
+    branch,
+    commit,
+    commitTs,
+    laneId,
+    runs,
+    unknown,
+}: {
+    branch: string
+    commit: string
+    commitTs: number | null
+    laneId: string
+    /** The lane's runs around this commit, in index order. */
+    runs: IndexEntry[]
+    /** Why the runs around this commit are not known (the index or its older months are loading or failed), else null. */
+    unknown: string | null
+}) {
+    const { placed, newer, older } = neighbours(runs, commit, commitTs)
+    const blocked = unknown ?? (placed ? null : "This commit is not in the lane's run index")
+    return (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <nav
+                aria-label="Breadcrumb"
+                className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-ash-500 dark:text-smoke-800"
+            >
+                <Link href={allResultsHref(laneId, branch)} className="font-medium hover:text-sapphire-700 dark:hover:text-electric hover:underline">
+                    All Results
+                </Link>
+                <span aria-hidden>/</span>
+                <span className="break-all font-mono">{branch}</span>
+                <span aria-hidden>/</span>
+                <span aria-current="page" className="font-mono text-charcoal-800 dark:text-smoke-200">
+                    {commit.slice(0, 7)}
+                </span>
+            </nav>
+            <div className="flex items-center gap-2">
+                <StepLink
+                    entry={blocked ? null : newer}
+                    branch={branch}
+                    laneId={laneId}
+                    disabledTitle={blocked ?? 'The newest tested commit on this lane'}
+                >
+                    <FiChevronLeft className="h-3.5 w-3.5" aria-hidden />
+                    Newer
+                </StepLink>
+                <StepLink
+                    entry={blocked ? null : older}
+                    branch={branch}
+                    laneId={laneId}
+                    disabledTitle={blocked ?? 'The oldest run on this lane'}
+                >
+                    Older
+                    <FiChevronRight className="h-3.5 w-3.5" aria-hidden />
+                </StepLink>
+            </div>
+        </div>
+    )
+}
+
+const notRun = (commit: string): LanePillStatus => ({
+    kind: 'missing',
+    text: `not run at ${commit.slice(0, 7)}`,
+    note: 'not run',
+    muted: true,
+})
+
+const verdictStatus = (overall: DisplayState, commit: string): LanePillStatus => ({
+    kind: dotKind(overall),
+    text: `${badgeMeta(overall.verdict, overall.inherited).text} at ${commit.slice(0, 7)}`,
+})
+
+/**
+ * A lane pill's dot on the commit page, from that lane's index head: its verdict for this
+ * commit, "not run", or "unknown" for a commit older than a truncated head reaches.
+ */
+function laneVerdict(
+    head: { isPending: boolean; isError: boolean; data: IndexHead | null | undefined } | undefined,
+    commit: string,
+    commitTs: number | null,
+    info: LaneInfo
+): LanePillStatus {
+    if (!head || head.isPending) return { kind: 'missing', text: "loading this lane's runs" }
+    if (head.isError) return { kind: 'missing', text: "this lane's run index could not be loaded" }
+    const entry = head.data?.entries.find((e) => e.c === commit)
+    if (entry) return verdictStatus(entryOverall(entry, info.goldens), commit)
+    if (headMayOmit(head.data, commitTs)) {
+        return {
+            kind: 'missing',
+            text: `${commit.slice(0, 7)} is older than the runs this lane's index lists: open the lane to see whether it ran`,
+            note: 'unknown',
+            muted: true,
+        }
+    }
+    return notRun(commit)
+}
+
 export default function RegressionCommitPage() {
     const router = useRouter()
     const branch = typeof router.query.branch === 'string' ? router.query.branch : undefined
@@ -350,6 +519,68 @@ export default function RegressionCommitPage() {
     const summary = summaryQuery.data
     const headQuery = useIndexHead(ready ? branch : undefined, lane.id)
     const head = headQuery.data
+    // Every lane's head on this branch (the current lane's shares its cache with headQuery),
+    // so the lane switcher can say which lanes ran this commit.
+    const laneIds = ready ? orderedLaneIds(lanesQuery.data) : []
+    const laneHeads = useIndexHeads(laneIds.map((id) => ({ branch: branch ?? '', lane: id })))
+    const listedOn = laneIds.filter((id, i) => laneHeads[i]?.data?.entries.some((e) => e.c === commit))
+    // Where the commit sits in time, as the index sorts it: its entry on this lane, else its
+    // commit time from the run summary or any lane's entry, else the summary's run time,
+    // else another lane's entry. Older summaries carry no commit_meta; the index files their
+    // runs by the commit time the worker looked up for them, which can be well before the run.
+    const headEntry = head?.entries.find((e) => e.c === commit)
+    const otherEntries = laneHeads
+        .map((q) => q.data?.entries.find((e) => e.c === commit))
+        .filter((e): e is IndexEntry => e != null)
+    const commitCt =
+        summary?.commit_meta?.committed_ts || otherEntries.find((e) => e.m?.ct)?.m?.ct || null
+    const commitTs = headEntry
+        ? entryTime(headEntry)
+        : commitCt ?? summary?.run_ts ?? (otherEntries[0] ? entryTime(otherEntries[0]) : null)
+    // A head lists only the lane's newest runs: for a commit at or past where it stops, load
+    // the months around it so Newer, Older and the drift details still find its neighbours.
+    // A run this lane published that its head leaves out is filed at or past that point even
+    // when its run time is newer; with no commit time to go on, look from that point back.
+    const windowStart = headWindowStart(head)
+    const filedPastHead = !!summary && !headEntry && commitCt == null
+    const olderMonths =
+        head && windowStart != null && commitTs != null && (commitTs <= windowStart || filedPastHead)
+            ? shardsAround(head, Math.min(commitTs, windowStart))
+            : NO_MONTHS
+    const shardQueries = useIndexShards(branch ?? '', lane.id, ready ? olderMonths : NO_MONTHS)
+    const runs = mergeIndexEntries(head?.entries ?? [], shardQueries.flatMap((q) => q.data?.entries ?? []))
+    const entry = runs.find((e) => e.c === commit)
+    // The other lanes' pills place the commit by the time this lane's entry files it under once
+    // that has loaded; a run time alone does not say where their heads would file it.
+    const pillTs = entry ? entryTime(entry) : filedPastHead ? null : commitTs
+    const runsUnknown = !headQuery.isSuccess
+        ? "The lane's run index is not loaded"
+        : shardQueries.some((q) => q.isPending)
+        ? "Loading the lane's older runs"
+        : shardQueries.some((q) => q.isError)
+        ? "The lane's older runs could not be loaded"
+        : null
+
+    // A #wf-<id> link lands before the cards exist: scroll to the card once they render,
+    // and keep it in view while the cards above load their records and images, until the
+    // reader scrolls or a few seconds pass.
+    React.useEffect(() => {
+        const target = summary ? window.location.hash.slice(1) : ''
+        const card = target ? document.getElementById(target) : null
+        if (!card) return
+        card.scrollIntoView()
+        const observer = new ResizeObserver(() => card.scrollIntoView())
+        observer.observe(document.body)
+        const release = () => observer.disconnect()
+        const timer = window.setTimeout(release, 5000)
+        const events = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const
+        events.forEach((e) => window.addEventListener(e, release, { once: true, passive: true }))
+        return () => {
+            release()
+            window.clearTimeout(timer)
+            events.forEach((e) => window.removeEventListener(e, release))
+        }
+    }, [summary])
 
     if (router.isReady && (!validBranch || !validCommit)) {
         return (
@@ -363,8 +594,8 @@ export default function RegressionCommitPage() {
                             ? 'Regression runs are looked up by a full 40-character lowercase commit SHA.'
                             : 'Branch names may use letters, digits, ".", "_", "-" and "/".'}
                     </span>
-                    <Link href="/regression" className="mt-2 text-sm text-electric hover:underline">
-                        Back to regression history
+                    <Link href="/" className="mt-2 text-sm text-sapphire-700 dark:text-electric hover:underline">
+                        Back to All Results
                     </Link>
                 </Surface>
             </div>
@@ -398,9 +629,40 @@ export default function RegressionCommitPage() {
             </div>
         )
     }
+
+    const nav = (
+        <CommitNav
+            branch={branch}
+            commit={commit}
+            commitTs={commitTs}
+            laneId={lane.id}
+            runs={runs}
+            unknown={runsUnknown}
+        />
+    )
+    // Every lane, whether or not it ran this commit: one that did not says so but stays
+    // clickable. The lane on show takes its dot from the run summary once that has loaded,
+    // so it agrees with the page even when its index head is stale or stops short.
+    const switcher = (current?: LanePillStatus) =>
+        laneIds.length > 1 ? (
+            <LanePills
+                className="mb-6"
+                lanes={lanesQuery.data}
+                value={lane.id}
+                hrefFor={(id) => commitPageHref(branch, commit, id)}
+                statusFor={(id, lanes) =>
+                    (id === lane.id ? current : undefined) ??
+                    laneVerdict(laneHeads[laneIds.indexOf(id)], commit, pillTs, lanes.lanes[id])
+                }
+                caption
+            />
+        ) : null
+
     if (summaryQuery.isError) {
         return (
             <div className="pt-8">
+                {nav}
+                {switcher()}
                 <FetchError
                     what="the run summary"
                     error={summaryQuery.error}
@@ -412,8 +674,16 @@ export default function RegressionCommitPage() {
     }
 
     if (!summary) {
+        // Links without ?lane= (PULSE comments for the primary lane, say) open the primary,
+        // which may not have run this commit: point at the lanes that did.
+        const ranOn = listedOn.filter((id) => id !== lane.id)
         return (
             <div className="pt-8">
+                {nav}
+                {switcher(notRun(commit))}
+                {lane.missing && (
+                    <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
+                )}
                 <Surface className="flex flex-col items-center justify-center gap-2 py-24 text-center">
                     <span className="text-lg font-semibold">No regression data</span>
                     <span className="text-sm text-ash-500 dark:text-smoke-800">
@@ -422,18 +692,31 @@ export default function RegressionCommitPage() {
                         <span className="font-mono">{branch}</span>
                         {lane.info && <> ({lane.info.label})</>}.
                     </span>
-                    <Link
-                        href={`/regression?lane=${encodeURIComponent(lane.id)}`}
-                        className="mt-2 text-sm text-electric hover:underline"
-                    >
-                        Back to regression history
+                    {ranOn.length > 0 && (
+                        <span className="text-sm text-ash-500 dark:text-smoke-800">
+                            It ran on{' '}
+                            {ranOn.map((id, i) => (
+                                <React.Fragment key={id}>
+                                    {i > 0 && ', '}
+                                    <Link
+                                        href={commitPageHref(branch, commit, id)}
+                                        className="font-medium text-sapphire-700 dark:text-electric hover:underline"
+                                    >
+                                        {lanesQuery.data?.lanes[id]?.label ?? id}
+                                    </Link>
+                                </React.Fragment>
+                            ))}
+                            .
+                        </span>
+                    )}
+                    <Link href={allResultsHref(lane.id, branch)} className="mt-2 text-sm text-sapphire-700 dark:text-electric hover:underline">
+                        Back to All Results
                     </Link>
                 </Surface>
             </div>
         )
     }
 
-    const entry = head?.entries.find((e) => e.c === commit)
     const goldens = lane.info?.goldens
     const workflows = Object.values(summary.workflows).sort((a, b) =>
         a.workflow_id.localeCompare(b.workflow_id)
@@ -456,13 +739,17 @@ export default function RegressionCommitPage() {
         (entry?.m
             ? { subject: entry.m.s, author: entry.m.a, committed_ts: entry.m.ct, parents: null, pr: entry.m.pr }
             : null)
+    const retired = isRetiredLane(lane.info)
 
     return (
         <div className="pt-8">
-            <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                    <h1 className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
-                        GPU Regression
+            {nav}
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                    <h1 className="flex flex-wrap items-center gap-3 text-2xl font-extrabold tracking-tight text-charcoal-800 dark:text-white">
+                        <span>
+                            Commit <span className="font-mono">{commit.slice(0, 7)}</span>
+                        </span>
                         <RegressionBadge verdict={overall.verdict} inherited={overall.inherited} />
                     </h1>
                     <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
@@ -472,26 +759,20 @@ export default function RegressionCommitPage() {
                         {lane.info && <> · {lane.info.label}</>}
                     </p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                    <LaneTabs
-                        lanes={lanesQuery.data}
-                        value={lane.id}
-                        hrefFor={(id) => commitPageHref(branch, commit, id)}
-                    />
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                        {meta && <CommitMetaChip meta={meta} />}
-                        <a
-                            href={`${COMFY_REPO}/commit/${commit}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 font-mono text-sm text-charcoal-800 dark:text-smoke-200 hover:border-electric/50"
-                        >
-                            {commit.slice(0, 12)}
-                            <FiExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                    </div>
+                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+                    {meta && <CommitMetaChip meta={meta} />}
+                    <a
+                        href={`${COMFY_REPO}/commit/${commit}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-smoke-300 dark:border-charcoal-400/60 bg-smoke-200/60 dark:bg-charcoal-700/60 px-3 py-1.5 font-mono text-sm text-charcoal-800 dark:text-smoke-200 hover:border-electric/50"
+                    >
+                        {commit.slice(0, 12)}
+                        <FiExternalLink className="h-3.5 w-3.5" />
+                    </a>
                 </div>
             </div>
+            {switcher(verdictStatus(overall, commit))}
 
             {lane.missing && (
                 <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
@@ -523,6 +804,7 @@ export default function RegressionCommitPage() {
                         result={wf}
                         state={states[wf.workflow_id]}
                         summaryEnv={summary.env}
+                        retired={retired}
                     />
                 ))}
             </div>

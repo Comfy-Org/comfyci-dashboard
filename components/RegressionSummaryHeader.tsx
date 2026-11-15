@@ -15,10 +15,10 @@ import type {
     Thresholds,
     WorkflowRegressionResult,
 } from '../src/regression/types'
-import { commitPageHref } from '../src/regression/validate'
+import { commitPageHref, workflowAnchor } from '../src/regression/validate'
 import { shortDate } from '../utils/time'
 
-const extLink = 'hover:text-electric hover:underline'
+const extLink = 'hover:text-sapphire-700 dark:hover:text-electric hover:underline'
 
 // "MSE 3.44 > 2.0" style clauses, one per metric, flagged when the threshold is crossed.
 function metricClauses(m: ComparisonMetrics, t: Thresholds | null): { text: string; bad: boolean }[] {
@@ -72,9 +72,13 @@ function FailingWorkflow({
     return (
         <div className="flex flex-col gap-1 border-t border-smoke-200 dark:border-charcoal-400/40 pt-3">
             <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-charcoal-800 dark:text-smoke-100">
+                <a
+                    href={`#${workflowAnchor(result.workflow_id)}`}
+                    title="Jump to this workflow's card"
+                    className="font-mono text-sm font-semibold text-charcoal-800 dark:text-smoke-100 hover:underline"
+                >
                     {result.workflow_id}
-                </span>
+                </a>
                 <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
             </div>
             {result.verdict === 'execution_error' ? (

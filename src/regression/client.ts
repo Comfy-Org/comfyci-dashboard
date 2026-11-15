@@ -175,7 +175,7 @@ const shardQuery = (branch: string, lane: string, month: string) =>
         () => `${indexPath(branch, lane)}/${checked('month', month, isPathSegment)}.json`
     )
 
-/** Several monthly shards at once; the History page appends a month per "Load older". */
+/** Several monthly shards at once; All Results appends a month per "Load older". */
 export const useIndexShards = (branch: string, lane: string, months: string[]) =>
     useQueries({ queries: months.map((m) => shardQuery(branch, lane, m)) })
 

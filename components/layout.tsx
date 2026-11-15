@@ -1,9 +1,46 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import Head from 'next/head'
+import Link from 'next/link'
 import { ThemeModeScript } from 'flowbite-react'
 import { Header } from './Header'
+import { LEGACY_CI_LAST_REPORT_TEXT } from './LegacyBanner'
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
+const WORKER_REPO = 'https://github.com/Comfy-Org/comfyci-runpod-worker'
+const footerLink = 'hover:text-charcoal-800 dark:hover:text-electric hover:underline'
+
+const Footer = () => (
+    <footer className="border-t border-smoke-300 dark:border-charcoal-400/60">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center gap-x-5 gap-y-2 px-4 py-5 text-xs text-ash-500 dark:text-smoke-800 sm:px-6 lg:px-8">
+            <Link href="/legacy" className={footerLink}>
+                Legacy CI results (until {LEGACY_CI_LAST_REPORT_TEXT})
+            </Link>
+            <Link href="/legacy/waterfall" className={footerLink}>
+                Legacy waterfall
+            </Link>
+            <a href={WORKER_REPO} target="_blank" rel="noopener noreferrer" className={footerLink}>
+                Worker repo
+            </a>
+            <a
+                href="https://github.com/Comfy-Org/comfyci-dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={footerLink}
+            >
+                Dashboard repo
+            </a>
+            <a
+                href={`${WORKER_REPO}/blob/main/manifest/lanes.json`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={footerLink}
+            >
+                Lane registry (lanes.json)
+            </a>
+        </div>
+    </footer>
+)
 
 export default function Layout({ children }: React.PropsWithChildren) {
     return (
@@ -93,7 +130,7 @@ export default function Layout({ children }: React.PropsWithChildren) {
                 />
                 <meta
                     property="og:url"
-                    content="https://comfyci.org"
+                    content="https://ci.comfy.org"
                 />
                 <meta
                     property="og:type"
@@ -129,11 +166,13 @@ export default function Layout({ children }: React.PropsWithChildren) {
                 <ThemeModeScript />
             </Head>
             <ToastContainer theme="dark" />
-            <main className="min-h-screen bg-smoke-100 dark:bg-ink-900 text-charcoal-800 dark:text-smoke-100">
+            {/* A flex column so the footer sits at the bottom of a short page. */}
+            <main className="flex min-h-screen flex-col bg-smoke-100 dark:bg-ink-900 text-charcoal-800 dark:text-smoke-100">
                 <Header />
-                <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 pb-16">
+                <div className="mx-auto w-full max-w-[1600px] flex-1 px-4 sm:px-6 lg:px-8 pb-16">
                     {children}
                 </div>
+                <Footer />
             </main>
         </>
     )

@@ -9,7 +9,7 @@ import { shortDate } from '../utils/time'
  * Where a failing chain started, as the words after "failing since": the first bad
  * commit with its PR and author, that commit's subject, how long the chain has run,
  * the golden it fails against and the last good commit. Rendered as inline fragments
- * so the history page's banner and the commit page's summary can give it their own
+ * so the All Results banner and the commit page's summary can give it their own
  * lead-in and colour. GitHub links are only built from a PR number and a full SHA.
  */
 export const FirstBadLine: React.FC<{

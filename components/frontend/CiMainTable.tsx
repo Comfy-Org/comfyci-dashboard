@@ -201,7 +201,7 @@ const Head: React.FC<{ columns: CiColumn[]; firstBad: Record<string, CiFirstBad>
     )
 }
 
-/** An open failing chain, as the regression page shows its first_bad banners. */
+/** An open failing chain, as All Results shows its first_bad banners. */
 const ChainBanner: React.FC<{ col: CiColumn; fb: CiFirstBad; entries: CiEntry[] }> = ({ col, fb, entries }) => {
     const subject = entries.find((e) => e.c === fb.commit)?.m?.s
     const href = frontendCommitUrl(fb.commit)

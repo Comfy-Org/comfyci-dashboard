@@ -5,9 +5,10 @@ import React from 'react'
  * white in light mode, with a hairline border and soft shadow.
  */
 export const Surface: React.FC<
-    React.PropsWithChildren<{ className?: string }>
-> = ({ children, className = '' }) => (
+    React.PropsWithChildren<{ className?: string; id?: string }>
+> = ({ children, className = '', id }) => (
     <div
+        id={id}
         className={[
             'rounded-2xl border border-smoke-300 dark:border-charcoal-400/60',
             'bg-white dark:bg-ink-800/70 shadow-card',

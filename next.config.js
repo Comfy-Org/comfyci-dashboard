@@ -33,6 +33,38 @@ const conf = {
         config.experiments.topLevelAwait = true
         return config
     },
+    // Old links keep working; every redirect passes the query string through. Temporary
+    // (307), so browsers do not cache them while the pages settle.
+    async redirects() {
+        // "/" used to be the legacy api.comfy.org results page: a link carrying one of its
+        // filters, or a branch of the PR-CI shape "<number>/merge" (ComfyUI's
+        // pullrequest-ci-run.yml posted https://ci.comfy.org/?branch=1234%2Fmerge on PRs),
+        // still means that page.
+        const legacyResults = ['repo', 'os', 'workflowName', 'commitId'].map((key) => ({
+            source: '/',
+            has: [{ type: 'query', key }],
+            destination: '/legacy',
+            permanent: false,
+        }))
+        return [
+            // The Regression tab became All Results; commit pages keep /regression/<branch>/<sha>.
+            { source: '/regression', destination: '/', permanent: false },
+            ...legacyResults,
+            {
+                source: '/',
+                has: [{ type: 'query', key: 'branch', value: '\\d+/merge' }],
+                destination: '/legacy',
+                permanent: false,
+            },
+            // The legacy waterfall only ever wrote ?repo=.
+            {
+                source: '/waterfall',
+                has: [{ type: 'query', key: 'repo' }],
+                destination: '/legacy/waterfall',
+                permanent: false,
+            },
+        ]
+    },
 }
 export default withMDX(conf)
 // module.exports = withMDX(conf)

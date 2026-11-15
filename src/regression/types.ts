@@ -151,17 +151,22 @@ export interface LaneLatest {
     overall: 'pass' | 'fail'
 }
 
+// How often a lane runs. A retired lane no longer runs at all; its history stays
+// published under the same index paths.
+export type LaneCadence = 'per-commit' | 'nightly' | 'weekly' | 'retired'
+
 export interface LaneInfo {
     label: string
     python: string
     torch: string
     cuda: string
     gpu: string
-    cadence: 'per-commit' | 'nightly' | 'weekly'
+    cadence: LaneCadence
     blocking: boolean
     role: 'primary' | 'lane' | 'legacy'
     layout: LaneLayout
-    branches: Record<string, { latest: LaneLatest; count: number; shards: string[] }>
+    // The worker writes latest: null for a branch whose runs it could not summarise.
+    branches: Record<string, { latest: LaneLatest | null; count: number; shards: string[] }>
     goldens: Record<string, { tag: string; sha: string | null }>
 }
 
@@ -230,7 +235,7 @@ export interface IndexHead {
     generated_ts: number
     count: number
     shards: string[]
-    latest: LaneLatest
+    latest: LaneLatest | null
     first_bad: Record<string, FirstBad>
     entries: IndexEntry[]
 }

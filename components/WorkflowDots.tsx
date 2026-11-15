@@ -1,7 +1,7 @@
 import React from 'react'
 import { DOT_SHAPES, Dot } from './Dot'
 import type { DotSpec } from './Dot'
-import { badgeMeta, displayVerdict } from './RegressionBadge'
+import { badgeMeta, displayVerdict, overallDisplay } from './RegressionBadge'
 import type { DisplayState } from './RegressionBadge'
 import type { IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
 import { formatGb } from '../utils/format'
@@ -18,6 +18,17 @@ export interface CellState {
 /** Display state of a raw index cell against its lane golden. */
 export const cellState = (cell: IndexWorkflowCell, wf: string, goldens?: LaneInfo['goldens']) =>
     displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+
+/** Display state of every cell the run has, not just the lane's fixed slots. */
+export const entryStates = (entry: IndexEntry, goldens?: LaneInfo['goldens']): DisplayState[] =>
+    Object.keys(entry.w).map((wf) => cellState(entry.w[wf], wf, goldens))
+
+/**
+ * Overall badge for one run, as the history table's Overall column shows it. It reads every
+ * cell the run has, so an id outside the lane's fixed order can never soften the verdict.
+ */
+export const entryOverall = (entry: IndexEntry, goldens?: LaneInfo['goldens']): DisplayState =>
+    overallDisplay(entry.o, entryStates(entry, goldens), entry.infra)
 
 /** The run's cells in the lane's fixed order; a workflow absent from the run yields nulls. */
 export function cellStates(
@@ -121,12 +132,16 @@ const GROUP = 5
  * The run's slots in lane order, in groups of five that wrap as units, so slot
  * columns stay aligned from row to row and "group 3, dot 2" means the same workflow
  * on every line. 25 workflows fit one line on a laptop; the cell never widens the table.
+ * `compact` caps a line at two groups, for a table with a column per lane.
  */
-export const WorkflowDots: React.FC<{ cells: CellState[] }> = ({ cells }) => {
+export const WorkflowDots: React.FC<{ cells: CellState[]; compact?: boolean }> = ({ cells, compact = false }) => {
     const groups: CellState[][] = []
     for (let i = 0; i < cells.length; i += GROUP) groups.push(cells.slice(i, i + GROUP))
     return (
-        <ul className="flex max-w-[28rem] flex-wrap gap-x-2 gap-y-1.5" aria-label={`${cells.length} workflows`}>
+        <ul
+            className={`flex flex-wrap gap-x-2 ${compact ? 'max-w-[11rem] gap-y-1' : 'max-w-[28rem] gap-y-1.5'}`}
+            aria-label={`${cells.length} workflows`}
+        >
             {groups.map((group) => (
                 <li key={group[0].wf} className="inline-flex gap-[3px]">
                     {group.map((c) => {
