@@ -5,7 +5,13 @@ import type { DisplayState } from './RegressionBadge'
 import { Surface } from './Surface'
 import { DotLegend, WorkflowDots, cellStates, entryStates, hasSmokeCells } from './WorkflowDots'
 import { COMFY_REPO } from '../src/regression/client'
-import type { CommitRange, FirstBad, IndexEntry, LaneInfo } from '../src/regression/types'
+import type {
+    CommitRange,
+    FirstBad,
+    IndexEntry,
+    IndexWorkflowCell,
+    LaneInfo,
+} from '../src/regression/types'
 import {
     comfyCompareUrl,
     commitPageHref,
@@ -50,10 +56,15 @@ function CoveredCommits({
     )
 }
 
+/** A pass or a failure. An infra error or a missing baseline is no result of the workflow. */
+const isResult = (cell: IndexWorkflowCell | undefined) =>
+    cell != null && (cell.v === 'pass' || cell.v === 'fail' || cell.v === 'execution_error')
+
 function HistoryRow({
     branch,
     laneId,
     entry,
+    history,
     workflows,
     goldens,
     firstBad,
@@ -61,6 +72,7 @@ function HistoryRow({
     branch: string
     laneId: string
     entry: IndexEntry
+    history?: IndexEntry[]
     workflows: string[]
     goldens?: LaneInfo['goldens']
     firstBad?: Record<string, FirstBad>
@@ -84,10 +96,23 @@ function HistoryRow({
         .sort((a, b) => Number(changedHere(b.state)) - Number(changedHere(a.state)))
     // The open chain of a workflow, when it starts at this run.
     const chainFrom = (wf: string) => (firstBad?.[wf]?.commit === entry.c ? firstBad[wf] : null)
-    // The commits a run covered are named where the failure began. Every execution error
-    // reads as changed, a standing one too: one is placed by its open chain.
+    // The commits a run covered are named where the failure began. A workflow with an open
+    // chain began to fail at that chain's first run and nowhere else: a run at an older
+    // commit that failed later moves the start there. Without one, a failed check began
+    // where it is not inherited. Every execution error reads as changed, a standing one
+    // too, so one is placed by its open chain alone.
     const beganHere = (wf: string, state: DisplayState) =>
-        state.verdict === 'execution_error' ? chainFrom(wf) != null : changedHere(state)
+        firstBad?.[wf] ? chainFrom(wf) != null : state.verdict === 'fail' && !state.inherited
+    // A run's range for a workflow starts at the workflow's last result when the run was
+    // made (`prev`). A later run at an older commit can put a result inside it, also after
+    // the chain has closed: the count is then no longer since its last result.
+    const overtaken = (wf: string) => {
+        const prev = entry.wr?.[wf]?.prev
+        const at = history ? history.indexOf(entry) : -1
+        if (!prev || !history || at === -1) return false
+        const before = history.slice(at + 1).find((e) => isResult(e.w[wf]))
+        return before != null && before.c !== prev
+    }
     const commitHref = commitPageHref(branch, entry.c, laneId)
     // Built here rather than taken from the index's range.url: the page should not
     // navigate to whatever string the published JSON carries.
@@ -163,7 +188,16 @@ function HistoryRow({
             <td className="px-5 py-3 align-top">
                 <div className="flex flex-col items-start gap-1">
                     <RegressionBadge state={overall} />
-                    {entry.infra && overall.verdict !== 'infra_error' && (
+                    {entry.named === true && (
+                        <span
+                            className="text-[11px] text-ash-500 dark:text-smoke-800"
+                            title="Only the workflows named for this run were tested at this commit"
+                        >
+                            named workflows only
+                        </span>
+                    )}
+                    {/* A green run that reads "Infra Error" still says which workflow. */}
+                    {entry.infra && (overall.verdict !== 'infra_error' || entry.o === 'pass') && (
                         <span className="max-w-[12rem] truncate text-[11px] text-amber-600 dark:text-amber-500" title={infraIds.join(', ')}>
                             {infraIds.length === 0
                                 ? 'infra error in this run'
@@ -196,7 +230,7 @@ function HistoryRow({
                                         {a.cell.exec.toFixed(1)}s
                                     </span>
                                 )}
-                                {beganHere(a.wf, a.state) && (
+                                {beganHere(a.wf, a.state) && !overtaken(a.wf) && (
                                     <CoveredCommits
                                         range={entry.wr?.[a.wf]}
                                         commit={entry.c}
@@ -230,13 +264,15 @@ export const HistoryTable: React.FC<{
     branch: string
     laneId: string
     entries: IndexEntry[]
+    /** Every loaded run of the lane, newest first: `entries` is one page of them. */
+    history?: IndexEntry[]
     workflows: string[]
     goldens?: LaneInfo['goldens']
     /** Open first_bad chains, already filtered by the page's banner rule. */
     firstBad?: Record<string, FirstBad>
     /** The lane has smoke-level results only: no goldens to name. */
     smokeOnly?: boolean
-}> = ({ branch, laneId, entries, workflows, goldens, firstBad, smokeOnly = false }) => (
+}> = ({ branch, laneId, entries, history, workflows, goldens, firstBad, smokeOnly = false }) => (
     <Surface className="overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left text-sm">
@@ -261,6 +297,7 @@ export const HistoryTable: React.FC<{
                             branch={branch}
                             laneId={laneId}
                             entry={entry}
+                            history={history}
                             workflows={workflows}
                             goldens={goldens}
                             firstBad={firstBad}

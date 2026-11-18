@@ -696,9 +696,12 @@ const notFinished = (commit: string): LanePillStatus => ({
     note: 'not finished',
 })
 
-const verdictStatus = (overall: DisplayState, commit: string): LanePillStatus => ({
+// `named`: the run tested only the workflows it named, so the verdict is not the lane's.
+const verdictStatus = (overall: DisplayState, commit: string, named = false): LanePillStatus => ({
     kind: dotKind(overall),
-    text: `${badgeMeta(overall).text} at ${commit.slice(0, 7)}`,
+    text: `${badgeMeta(overall).text} at ${commit.slice(0, 7)}${
+        named ? ', named workflows only' : ''
+    }`,
 })
 
 /**
@@ -714,7 +717,9 @@ function laneVerdict(
     if (!head || head.isPending) return { kind: 'missing', text: "loading this lane's runs" }
     if (head.isError) return { kind: 'missing', text: "this lane's run index could not be loaded" }
     const entry = head.data?.entries.find((e) => e.c === commit)
-    if (entry) return verdictStatus(entryOverall(entry, info.goldens), commit)
+    if (entry) {
+        return verdictStatus(entryOverall(entry, info.goldens), commit, entry.named === true)
+    }
     if (headMayOmit(head.data, commitTs)) {
         return {
             kind: 'missing',
@@ -1004,7 +1009,11 @@ export default function RegressionCommitPage() {
                     </a>
                 </div>
             </div>
-            {switcher(greenSoFar ? notFinished(commit) : verdictStatus(overall, commit))}
+            {switcher(
+                greenSoFar
+                    ? notFinished(commit)
+                    : verdictStatus(overall, commit, Array.isArray(summary.scope))
+            )}
 
             {lane.missing && (
                 <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />

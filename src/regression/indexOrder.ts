@@ -3,8 +3,29 @@
 // commit time is unknown), ties by sha, so re-testing an older commit never moves it in
 // the history. A head keeps only the newest entries of that order while `count` stays the
 // lane's total, so a commit missing from a long lane's head may still have run.
-import type { IndexEntry, IndexHead } from './types'
+import type { IndexEntry, IndexHead, IndexWorkflowCell } from './types'
 import { monthKey } from '../../utils/time'
+
+/**
+ * The lane's latest run among entries in index order. A run that named its workflows
+ * (`named`) is a re-test or a first look, not the lane's run of its commit: the latest run
+ * is the newest without the mark, as the worker's `latest` is.
+ */
+export const latestFullRun = (entries: IndexEntry[]): IndexEntry | undefined =>
+    entries.find((e) => e.named !== true)
+
+/**
+ * Where a workflow stands now: its cell in the lane's latest run, or in a run of named
+ * workflows after it, whichever is newer. On a lane without a full run it is the
+ * workflow's newest cell.
+ */
+export function currentCell(entries: IndexEntry[], wf: string): IndexWorkflowCell | undefined {
+    for (const e of entries) {
+        if (e.w[wf]) return e.w[wf]
+        if (e.named !== true) return undefined
+    }
+    return undefined
+}
 
 /** The worker's sort time for an entry: commit time when known, else run time. */
 export const entryTime = (e: IndexEntry): number => e.m?.ct || e.t

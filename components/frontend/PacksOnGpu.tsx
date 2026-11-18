@@ -17,6 +17,7 @@ import {
     packTone,
 } from '../../src/frontend/packs'
 import type { PackLane, PackRef, PackRegistry, PackTone, PackWorkflow } from '../../src/frontend/packs'
+import { isLongCadenceLane } from '../../src/regression/lanes'
 import type { CheckLevel, IndexEntry, PackImportStatus } from '../../src/regression/types'
 import { commitPageHref } from '../../src/regression/validate'
 import { formatGb } from '../../utils/format'
@@ -313,6 +314,11 @@ export const PacksOnGpu: React.FC<{ packs: PackLanesState }> = ({ packs }) => {
     const legend = presentKinds(lanes)
     // Pack workflows at smoke level only: nothing here is compared with a golden.
     const smokeOnly = lanes.every((lane) => lane.workflows.every((pw) => pw.cell.l === 'smoke'))
+    // Rows of both levels, or a nightly or weekly lane: not every row is compared with a
+    // golden, or not on every core commit. The footnote then uses words that fit each row.
+    const mixed =
+        lanes.some((lane) => lane.workflows.some((pw) => pw.cell.l === 'smoke')) ||
+        lanes.some((lane) => isLongCadenceLane(lane.info))
 
     return (
         <Surface className="mb-6 p-5">
@@ -336,6 +342,14 @@ export const PacksOnGpu: React.FC<{ packs: PackLanesState }> = ({ packs }) => {
                         The core GPU regression installs these packs at the commits the
                         frontend{"'"}s custom-node gate pins and checks on each run of the lane
                         that the workflows finish and write usable files; a pack that fails to
+                        import turns its workflow red even when the workflow uses none of its
+                        nodes.
+                    </>
+                ) : mixed ? (
+                    <>
+                        The core GPU regression installs these packs at the commits the
+                        frontend{"'"}s custom-node gate pins and checks the outputs (against
+                        goldens at reference level) on each run of the lane; a pack that fails to
                         import turns its workflow red even when the workflow uses none of its
                         nodes.
                     </>

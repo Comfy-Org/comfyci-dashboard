@@ -153,6 +153,9 @@ export interface WorkflowRegressionResult {
     // harness could not start has the level and no `smoke`.
     level?: CheckLevel
     smoke?: SmokeResult | null
+    // Written as 2 on the result of the second job a nightly or weekly run gave the
+    // workflow at its end. No page shows it: the card is that job's either way.
+    tries?: number
     // The workflow's last pass or failure before this run, when it had one.
     prior_verdict?: string | null
     error?: string
@@ -271,7 +274,8 @@ export interface LaneInfo {
     blocking: boolean
     role: 'primary' | 'lane' | 'legacy'
     layout: LaneLayout
-    // The worker writes latest: null for a branch whose runs it could not summarise.
+    // `latest` is the newest run that did not name its workflows, and null when the lane has
+    // none on the branch. `count` is every run, so it can be above 0 beside a null latest.
     branches: Record<string, { latest: LaneLatest | null; count: number; shards: string[] }>
     goldens: Record<string, { tag: string; sha: string | null }>
 }
@@ -290,10 +294,12 @@ export interface LanesIndex {
 export type DriftKind = 'new_drift' | 'inherited'
 
 // The commits a run covered: how many, and GitHub's compare page for them. `n` is null
-// when GitHub did not give the count.
+// when GitHub did not give the count. `prev` is on a run's range for one workflow (`wr`):
+// the commit of the workflow's last pass or failure when the run was made.
 export interface CommitRange {
     n: number | null
     url: string | null
+    prev?: string | null
 }
 
 // How ComfyUI's startup went for one custom-node pack the workflow installs: imported,
@@ -332,6 +338,10 @@ export interface IndexEntry {
     range: { n: number | null; url: string } | null
     w: Record<string, IndexWorkflowCell>
     s: Record<string, [number, number, number]> | null
+    // Written as true, and only then: the run named its workflows at a commit the lane has
+    // no full result for. Its cells are those workflows alone, and it is not the lane's
+    // run of the commit.
+    named?: boolean
     // Per failing workflow, the commits between its own last result and this run. Only
     // runs of nightly and weekly lanes have it: one run of theirs covers many commits.
     wr?: Record<string, CommitRange>
@@ -349,7 +359,8 @@ export interface FirstBad {
     // Set when a smoke-level result opened the chain.
     level?: CheckLevel
     // On a nightly or weekly lane: the commits the chain's first run covered for this
-    // workflow. With more than one, `commit` is only the newest of them.
+    // workflow. With more than one, `commit` is only the newest of them. After a later run
+    // passed inside that range it is the link from `prev_good` to `commit`, and `n` is null.
     range?: CommitRange | null
 }
 
@@ -361,6 +372,7 @@ export interface IndexHead {
     generated_ts: number
     count: number
     shards: string[]
+    // The newest run that did not name its workflows: `entries[0]` can be newer.
     latest: LaneLatest | null
     first_bad: Record<string, FirstBad>
     entries: IndexEntry[]

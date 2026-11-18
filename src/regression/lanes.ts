@@ -53,9 +53,20 @@ export function laneRunsCaption(info: LaneInfo): string {
     return `${info.cadence} · ${info.blocking ? 'blocking' : 'informational'}`
 }
 
-/** The lane's latest run on a branch as lanes.json records it; null when it never ran there. */
+/**
+ * The lane's latest run on a branch as lanes.json records it. Null when it never ran there,
+ * and when every run of it there named its workflows: such a run is not the lane's run.
+ */
 export function laneLatest(info: LaneInfo | null | undefined, branch: string): LaneLatest | null {
     const branches = info?.branches
     if (!branches || typeof branches !== 'object' || !own(branches, branch)) return null
     return branches[branch]?.latest ?? null
+}
+
+/** How many runs lanes.json counts for the lane on a branch, runs of named workflows too. */
+export function laneRunCount(info: LaneInfo | null | undefined, branch: string): number {
+    const branches = info?.branches
+    if (!branches || typeof branches !== 'object' || !own(branches, branch)) return 0
+    const count = branches[branch]?.count
+    return typeof count === 'number' && count > 0 ? count : 0
 }

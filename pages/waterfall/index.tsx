@@ -263,6 +263,8 @@ function LaneCell({ branch, row, col }: { branch: string; row: Row; col: LaneCol
             className="-m-1.5 flex w-max flex-col items-start gap-1.5 rounded-lg p-1.5 transition-colors hover:bg-smoke-200/70 hover:ring-1 hover:ring-electric/40 dark:hover:bg-charcoal-700/50"
         >
             <RegressionBadge state={run.overall} plain />
+            {/* Not the lane's run of the commit: the badge is of the workflows it named. */}
+            {run.entry.named === true && <span className={quiet}>named workflows only</span>}
             {run.cells.length > 0 && <WorkflowDots cells={run.cells} compact />}
         </Link>
     )

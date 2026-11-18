@@ -3,6 +3,7 @@ import React from 'react'
 import { RegressionBadge } from './RegressionBadge'
 import { Surface, SectionTitle } from './Surface'
 import { WorkflowDot, cellState, dotKind, driftStartedHere } from './WorkflowDots'
+import { currentCell, latestFullRun } from '../src/regression/indexOrder'
 import type { FirstBad, IndexEntry, LaneInfo } from '../src/regression/types'
 import { commitPageHref } from '../src/regression/validate'
 import { formatGb } from '../utils/format'
@@ -30,7 +31,7 @@ function Tile({
     goldens?: LaneInfo['goldens']
     fb?: FirstBad
 }) {
-    const cell = entries[0]?.w[wf]
+    const cell = currentCell(entries, wf)
     const state = cell ? cellState(cell, wf, goldens) : null
     const runs = entries.filter((e) => e.w[wf])
     // Newest run where this workflow's drift or execution failure began; a drift that
@@ -132,20 +133,23 @@ export const WorkflowStrip: React.FC<{
     smokeOnly?: boolean
 }> = ({ branch, laneId, entries, workflows, goldens, firstBad, smokeOnly = false }) => {
     const [showAll, setShowAll] = React.useState(false)
-    const latest = entries[0]
-    if (!latest || workflows.length === 0) return null
+    if (entries.length === 0 || workflows.length === 0) return null
 
+    // The latest run is the newest that did not name its workflows. A run of named
+    // workflows after it gives those workflows a newer result, and each tile shows that one.
+    const latest = latestFullRun(entries)
     const states = workflows.map((wf) => {
-        const cell = latest.w[wf]
+        const cell = currentCell(entries, wf)
         return cell ? cellState(cell, wf, goldens) : null
     })
     const notRun = states.filter((s) => s === null).length
     const passing = states.filter((s) => s?.verdict === 'pass').length
     const failing = states.filter((s) => s?.verdict === 'fail' || s?.verdict === 'execution_error').length
     const other = workflows.length - notRun - passing - failing
+    const inLatest = latest ? workflows.filter((wf) => latest.w[wf]).length : 0
     const caption = [
-        `${workflows.length - notRun} of ${workflows.length} in the latest run`,
-        formatRelative(latest.t),
+        latest ? `${inLatest} of ${workflows.length} in the latest run` : 'no full run yet',
+        latest ? formatRelative(latest.t) : null,
         `${passing} pass`,
         failing ? `${failing} failing` : null,
         other ? `${other} other` : null,

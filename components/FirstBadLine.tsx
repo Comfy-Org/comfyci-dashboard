@@ -22,6 +22,7 @@ import { shortDate } from '../utils/time'
  * a smoke-level chain on any lane, and any chain on a nightly or weekly lane. One whose
  * first run covered more than one commit (a nightly or weekly lane) links the commits
  * after the last good one, and says how many while the published count is of those.
+ * Without such a count it names the chain's commit as the newest of the linked ones.
  */
 export const FirstBadLine: React.FC<{
     fb: FirstBad
@@ -56,7 +57,15 @@ export const FirstBadLine: React.FC<{
             ? `${COMFY_REPO}/compare/${fb.prev_good}...${fb.commit}`
             : null
     const counted = covered != null && compare != null && comfyCompareUrl(range?.url) === compare
-    const commits = counted ? `${covered} commits` : 'an unknown number of commits'
+    // A link without a count: the worker gives it after a later run passed inside the
+    // range (`n` is null), or GitHub gave no count. The words then say only what holds
+    // either way: the failure began in one of the linked commits, and this is the newest.
+    const lead = counted || !compare ? 'a run that covered' : 'the newest of'
+    const commits = counted
+        ? `${covered} commits`
+        : compare
+        ? 'the commits since the last good one'
+        : 'an unknown number of commits'
     return (
         <>
             <Link href={href(fb.commit)} className="font-mono font-semibold hover:underline">
@@ -66,7 +75,7 @@ export const FirstBadLine: React.FC<{
                 <>
                     {' '}
                     <span>
-                        (a run that covered{' '}
+                        ({lead}{' '}
                         {compare ? (
                             <a
                                 href={compare}

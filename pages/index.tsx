@@ -32,8 +32,13 @@ import {
 } from '../src/regression/client'
 import type { LaneRef } from '../src/regression/client'
 import { DEFAULT_BRANCH, useBranchParam } from '../src/regression/branchParam'
-import { entryTime, mergeIndexEntries } from '../src/regression/indexOrder'
-import { isLongCadenceLane, laneLatest } from '../src/regression/lanes'
+import {
+    currentCell,
+    entryTime,
+    latestFullRun,
+    mergeIndexEntries,
+} from '../src/regression/indexOrder'
+import { isLongCadenceLane, laneLatest, laneRunCount } from '../src/regression/lanes'
 import type {
     FirstBad,
     IndexEntry,
@@ -51,6 +56,8 @@ const PAGE_SIZE = 25
 const NO_MONTHS: string[] = []
 const KPI_WINDOW = 30
 const SPARK_WINDOW = 60
+// The card the page's intro names.
+const PRIMARY_GPU = 'RTX 4090'
 
 /** The next monthly shard to fetch, or null when everything the index counts is loaded. */
 function nextShard(head: IndexHead, entries: IndexEntry[], loaded: string[]): string | null {
@@ -185,25 +192,26 @@ function LaneKpis({
     /** The lane has smoke-level results only: failures, but no regression and no drift. */
     smokeOnly: boolean
 }) {
-    const window = entries.slice(0, KPI_WINDOW)
+    // A run that named its workflows is not the lane's run of its commit: it is no run of
+    // the pass rate and not the last run. Its cells still say where those workflows stand.
+    const window = entries.filter((e) => e.named !== true).slice(0, KPI_WINDOW)
     const scored = window.filter((e) => !e.infra)
     const passed = scored.filter((e) => e.o === 'pass').length
     const infra = window.length - scored.length
-    const latest = entries[0]
+    const latest = latestFullRun(entries)
     // Open: still drifting in the latest run (inherited or not), or unable to execute at all.
-    // A workflow the latest run left out (a run of named workflows) stays open while its
-    // failing chain is: it is read from its own newest result.
-    const open = latest
-        ? workflows.flatMap((wf) => {
-              const cell =
-                  latest.w[wf] ?? (firstBad[wf] ? entries.find((e) => e.w[wf])?.w[wf] : undefined)
-              if (!cell) return []
-              const { verdict, level } = cellState(cell, wf, goldens)
-              if (verdict === 'execution_error') return [`${wf} (execution error)`]
-              if (verdict !== 'fail') return []
-              return [level === 'smoke' ? `${wf} (smoke check failed)` : wf]
-          })
-        : []
+    // A workflow the latest run left out stays open while its failing chain is: it is read
+    // from its own newest result.
+    const open = workflows.flatMap((wf) => {
+        const cell =
+            currentCell(entries, wf) ??
+            (firstBad[wf] ? entries.find((e) => e.w[wf])?.w[wf] : undefined)
+        if (!cell) return []
+        const { verdict, level } = cellState(cell, wf, goldens)
+        if (verdict === 'execution_error') return [`${wf} (execution error)`]
+        if (verdict !== 'fail') return []
+        return [level === 'smoke' ? `${wf} (smoke check failed)` : wf]
+    })
     return (
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
@@ -532,20 +540,22 @@ function LaneHistory({
         .filter(([wf]) => {
             // A passing or re-blessed latest run closes the chain even before the worker
             // prunes it from first_bad; any other verdict leaves the regression open.
-            const cell = entries[0]?.w[wf]
+            const cell = currentCell(entries, wf)
             if (!cell) return true
             const { verdict } = cellState(cell, wf, goldens)
             return verdict !== 'pass' && verdict !== 'accepted'
         })
     const openChains: Record<string, FirstBad> = Object.fromEntries(firstBad)
     const smokeOnly = onlySmokeCells(entries)
+    const latestTs = head.latest?.run_ts ?? latestFullRun(entries)?.t ?? null
 
     return (
         <>
             <StaleBanner
-                latestTs={head.latest?.run_ts ?? entries[0]?.t ?? null}
+                latestTs={latestTs}
                 indexMissing={false}
                 cadence={lane.info?.cadence}
+                namedOnly={latestTs == null && entries.length > 0}
             />
             {firstBad.map(([wf, fb]) => (
                 <FirstBadBanner
@@ -583,6 +593,7 @@ function LaneHistory({
                         branch={branch}
                         laneId={lane.id}
                         entries={pageEntries}
+                        history={entries}
                         workflows={workflows}
                         goldens={goldens}
                         firstBad={openChains}
@@ -642,7 +653,14 @@ function resolveLookup(input: string, entries: IndexEntry[]): CommitLookup {
 /** A lane pill's dot: the lane's latest run on the branch, as lanes.json records it. */
 function latestStatus(lanes: LanesIndex, laneId: string, branch: string): LanePillStatus {
     const latest = laneLatest(lanes.lanes[laneId], branch)
-    if (!latest) return { kind: 'missing', text: `no runs on ${branch}` }
+    if (!latest) {
+        // Runs and no latest one: every run of the lane named its workflows.
+        const named = laneRunCount(lanes.lanes[laneId], branch) > 0
+        return {
+            kind: 'missing',
+            text: named ? `only runs of named workflows on ${branch}` : `no runs on ${branch}`,
+        }
+    }
     return {
         kind: latest.overall === 'pass' ? 'pass' : 'fail',
         text: `latest run on ${branch}: ${latest.overall} at ${latest.commit.slice(0, 7)}, ${formatRelative(latest.run_ts)}`,
@@ -672,6 +690,10 @@ export default function AllResultsPage() {
         olderMonths
     )
     const lookup = resolveLookup(commitLookup, validBranch ? runs.entries : [])
+    // The intro speaks of every commit and of RTX 4090s. That is not so on a nightly or
+    // weekly lane, which tests one commit of many, or on a lane that names another card.
+    const otherLane =
+        isLongCadenceLane(lane.info) || (!!lane.info?.gpu && lane.info.gpu !== PRIMARY_GPU)
 
     return (
         <div className="pt-8">
@@ -686,6 +708,13 @@ export default function AllResultsPage() {
                             workflows of this lane run on serverless GPUs and are only checked to
                             finish and to write usable files: their output is not compared with a
                             golden.
+                        </>
+                    ) : otherLane ? (
+                        <>
+                            GPU regression results for ComfyUI, with one history per lane:
+                            fixed-seed workflows run on serverless GPUs. Reference-level workflows
+                            are compared with golden outputs, smoke-level workflows are checked to
+                            finish and to write usable files.
                         </>
                     ) : (
                         <>

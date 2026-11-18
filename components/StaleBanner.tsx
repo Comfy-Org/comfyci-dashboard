@@ -36,7 +36,9 @@ export const StaleBanner: React.FC<{
     cadence?: LaneCadence
     /** Set when lanes.json lists the lane but not this branch: the lane never ran on it. */
     unlistedBranch?: string
-}> = ({ latestTs, indexMissing, cadence = 'per-commit', unlistedBranch }) => {
+    /** Set when the lane has runs and each named its workflows: none is the lane's run. */
+    namedOnly?: boolean
+}> = ({ latestTs, indexMissing, cadence = 'per-commit', unlistedBranch, namedOnly = false }) => {
     if (cadence === 'retired') {
         return (
             <div
@@ -78,6 +80,10 @@ export const StaleBanner: React.FC<{
             ) : noRunsOnBranch ? (
                 <span className="font-semibold">
                     This lane has no runs on <span className="font-mono">{unlistedBranch}</span>
+                </span>
+            ) : namedOnly ? (
+                <span className="font-semibold">
+                    No full run of this lane yet, only runs of named workflows
                 </span>
             ) : (
                 <span className="font-semibold">No runs recorded for this lane yet</span>
