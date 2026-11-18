@@ -37,29 +37,37 @@ function Tile({
     // was later accepted still has one, and is labelled as such.
     const lastDrift = runs.find((e) => driftStartedHere(e.w[wf]))
     const lastDriftState = lastDrift ? cellState(lastDrift.w[wf], wf, goldens) : null
+    // A smoke-level workflow has no golden and nothing that drifts: its tile names no
+    // tag, and its last line counts failed smoke checks.
+    const smoke = (cell ?? runs[0]?.w[wf])?.l === 'smoke'
     const facts: string[] = []
     if (cell?.exec != null) facts.push(`${cell.exec.toFixed(1)}s`)
     if (cell?.vram != null) facts.push(formatGb(cell.vram))
-    const tag = cell?.g ?? goldens?.[wf]?.tag
+    const tag = smoke ? null : cell?.g ?? goldens?.[wf]?.tag
     if (tag) facts.push(`golden ${tag}`)
     const line2 = cell
         ? facts.join(' · ') || '—'
         : `not in the latest run${runs[0] ? ` · last seen ${formatRelative(runs[0].t)}` : ''}`
 
+    // The badge of a failed smoke check is long. In such a tile the id keeps a readable
+    // width and the badge drops to a line of its own when the two do not fit.
+    const head = smoke ? 'flex flex-wrap items-center gap-x-2 gap-y-1' : 'flex items-center gap-2'
+    const idClass = [
+        smoke ? 'min-w-[5rem]' : 'min-w-0',
+        'flex-1 truncate font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100',
+    ].join(' ')
+
     return (
         <li className="min-w-0 rounded-xl border border-smoke-300 dark:border-charcoal-400/60 px-3 py-2">
-            <div className="flex items-center gap-2">
+            <div className={head}>
                 <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-ash-500 dark:text-smoke-800">
                     #{index}
                 </span>
                 <WorkflowDot kind={dotKind(state)} />
-                <span
-                    className="min-w-0 flex-1 truncate font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100"
-                    title={wf}
-                >
+                <span className={idClass} title={wf}>
                     {wf}
                 </span>
-                {state && <RegressionBadge verdict={state.verdict} inherited={state.inherited} />}
+                {state && <RegressionBadge state={state} />}
             </div>
             <div
                 className="mt-1 truncate font-mono text-[11px] tabular-nums text-ash-500 dark:text-smoke-800"
@@ -79,7 +87,11 @@ function Tile({
                     </span>
                 ) : lastDrift ? (
                     <>
-                        {lastDriftState?.verdict === 'execution_error' ? 'last execution error' : 'last drift'}{' '}
+                        {lastDriftState?.verdict === 'execution_error'
+                            ? 'last execution error'
+                            : lastDriftState?.level === 'smoke'
+                            ? 'last failed smoke check'
+                            : 'last drift'}{' '}
                         {formatRelative(lastDrift.t)} ·{' '}
                         <Link href={commitPageHref(branch, lastDrift.c, laneId)} className={shaClass}>
                             {lastDrift.c.slice(0, 7)}
@@ -88,6 +100,8 @@ function Tile({
                     </>
                 ) : runs.length <= 1 ? (
                     'first run'
+                ) : smoke ? (
+                    `no failed smoke check in ${runs.length} runs`
                 ) : (
                     `no drift in ${runs.length} runs`
                 )}

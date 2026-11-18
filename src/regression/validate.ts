@@ -42,6 +42,19 @@ export const isLaneId = (value: unknown): value is string =>
 export const isPathSegment = (value: unknown): value is string =>
     typeof value === 'string' && /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/.test(value)
 
+const SHA = '[0-9a-f]{40}'
+const COMPARE_URL = new RegExp(
+    `^https://github\\.com/Comfy-Org/ComfyUI/compare/${SHA}\\.{3}${SHA}$`
+)
+
+/**
+ * A compare link from the published JSON, handed back only when it is exactly GitHub's
+ * compare page of ComfyUI between two full commit SHAs. Anything else is null, so the
+ * page never links to a string it has not checked.
+ */
+export const comfyCompareUrl = (value: unknown): string | null =>
+    typeof value === 'string' && COMPARE_URL.test(value) ? value : null
+
 /**
  * Quotes a value for a shell command shown to be copied. A value of only letters, digits
  * and "._/-" means the same to every shell and is left bare, so the command also pastes

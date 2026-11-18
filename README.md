@@ -14,6 +14,19 @@ Every page except Legacy reads static JSON that the worker repo ([Comfy-Org/comf
 
 Lanes come from `regression/index/lanes.json`, which the worker builds from its [`manifest/lanes.json`](https://github.com/Comfy-Org/comfyci-runpod-worker/blob/main/manifest/lanes.json). A lane with cadence `retired` runs no more but keeps its history readable: it is listed last, gets a neutral note instead of a staleness warning, and offers no re-bless commands.
 
+A lane with cadence `nightly` or `weekly` tests one commit of many. It has no column on the Waterfall, which links to it on All Results instead. Its freshness banner turns amber after 36 hours or 8 days without a run. When a failing chain started in a run that covered more than one commit, the "failing since" line says how many, with GitHub's compare link, and names no pull request, author or subject: that commit is only the newest of them.
+
+### Smoke-level workflows
+
+A workflow the worker runs at smoke level (`"level": "smoke"` in its manifest) is only checked to finish and to write usable files. Its output is not compared with a golden. The pages read `level` on a result and `l` on an index cell, and show such a result with words of its own:
+
+- The badge reads "Smoke pass" or "Smoke check failed", and "Smoke check failed (inherited)" when the workflow's result before it had failed too. An execution or infra error reads as on any workflow.
+- It has no golden: no golden tag, no accepted drift, no re-bless commands, and no place in "Drift vs golden" on All Results.
+- Its commit-page card has a "Checked files" table where other cards have the metric table: one row per output file with its type, size, sha256 and what the check measured, under the sentences that say what failed. A file the worker did not send reads "not sent, checked by size only". A file the run kept in its artifact (a large output that does not repeat) is listed without a link and is left out of the pictures.
+- A failing chain of a smoke-level workflow that never passed on the lane says that it is the first result, and names no pull request or author.
+
+File names and problem sentences come from the worker's run. They are shown as text only, and a file is linked only when its name is a plain file name.
+
 ### Redirects
 
 `next.config.js` keeps old links working. The redirects are temporary (307) and keep the query string.

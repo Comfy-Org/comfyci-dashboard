@@ -74,6 +74,61 @@ export interface ValidationReport {
     error?: string
 }
 
+// How a workflow is checked. Absent means reference level: its output is compared with a
+// blessed golden. "smoke" means it only has to finish and to write usable files: nothing
+// is compared, so such a result has no golden, no metrics and no re-bless.
+export type CheckLevel = 'smoke'
+
+// One output file of a smoke-level run. `type` is null for an extension that is not
+// checked. `sent` and `published` are written only when false: the worker did not send
+// the file, or it is not on the results branch. The rest is what the check measured.
+export interface SmokeFile {
+    name: string
+    type: string | null
+    bytes?: number | null
+    sha256?: string | null
+    sent?: boolean
+    published?: boolean
+    // image and video
+    width?: number
+    height?: number
+    // image: spread of the brightness, and the share of pixels with the most common one
+    std?: number
+    flat_share?: number
+    // text
+    chars?: number
+    words?: number
+    // audio
+    sample_rate?: number
+    channels?: number
+    bits?: number
+    bytes_per_second?: number
+    pcm_md5?: string | null
+    // audio and video
+    seconds?: number
+    // mesh: `extent` is the three sides of the bounding box, null when a position is not finite
+    vertices?: number
+    faces?: number
+    extent?: number[] | null
+    // video
+    frames?: number
+    bytes_per_frame_mp?: number
+}
+
+// Why a smoke-level run does not pass. `file` is null for a file that is missing.
+export interface SmokeProblem {
+    file: string | null
+    check: string
+    text: string
+}
+
+export interface SmokeResult {
+    files: SmokeFile[]
+    problems: SmokeProblem[]
+    // Sentences that are not failures, e.g. a file that was checked by its size only.
+    notes: string[]
+}
+
 export interface WorkflowRegressionResult {
     workflow_id: string
     worker_status: string
@@ -94,6 +149,10 @@ export interface WorkflowRegressionResult {
     thumbnail?: string | null
     // Written only for a workflow that is not an image workflow, e.g. "text".
     output_kind?: string | null
+    // Written only for a smoke-level workflow, with what its checks found. A run the
+    // harness could not start has the level and no `smoke`.
+    level?: CheckLevel
+    smoke?: SmokeResult | null
     error?: string
 }
 
@@ -210,8 +269,16 @@ export interface LanesIndex {
 
 // new_drift: failed vs golden and the output differs from the previous tested run (the
 // change happened at this commit). inherited: failed but bit-identical to the previous,
-// also failing, run. Null otherwise.
+// also failing, run. Null otherwise. A smoke-level failure is "inherited" when the
+// workflow's last result before it had failed too, else null.
 export type DriftKind = 'new_drift' | 'inherited'
+
+// The commits a run covered: how many, and GitHub's compare page for them. `n` is null
+// when GitHub did not give the count.
+export interface CommitRange {
+    n: number | null
+    url: string | null
+}
 
 // How ComfyUI's startup went for one custom-node pack the workflow installs: imported,
 // failed to import, or not found in the startup log at all.
@@ -231,6 +298,8 @@ export interface IndexWorkflowCell {
     th: string | null
     // Output kind, written only when it is not image (e.g. "text"); such a cell has no MSE.
     k?: string
+    // Check level, written only for a smoke-level cell; such a cell has no MSE and no golden.
+    l?: CheckLevel
     // Import status per custom-node pack, keyed by the pack's custom_nodes directory name.
     // Present only on the cells of workflows that install packs.
     cn?: Record<string, PackImportStatus>
@@ -247,6 +316,9 @@ export interface IndexEntry {
     range: { n: number | null; url: string } | null
     w: Record<string, IndexWorkflowCell>
     s: Record<string, [number, number, number]> | null
+    // Per failing workflow, the commits between its own last result and this run. Only
+    // runs of nightly and weekly lanes have it: one run of theirs covers many commits.
+    wr?: Record<string, CommitRange>
 }
 
 // Start of the oldest consecutive failing chain per workflow, computed by the worker.
@@ -258,6 +330,11 @@ export interface FirstBad {
     author: string | null
     golden: string | null
     runs: number
+    // Set when a smoke-level result opened the chain.
+    level?: CheckLevel
+    // On a nightly or weekly lane: the commits the chain's first run covered for this
+    // workflow. With more than one, `commit` is only the newest of them.
+    range?: CommitRange | null
 }
 
 export interface IndexHead {

@@ -17,7 +17,7 @@ import {
     packTone,
 } from '../../src/frontend/packs'
 import type { PackLane, PackRef, PackRegistry, PackTone, PackWorkflow } from '../../src/frontend/packs'
-import type { IndexEntry, PackImportStatus } from '../../src/regression/types'
+import type { CheckLevel, IndexEntry, PackImportStatus } from '../../src/regression/types'
 import { commitPageHref } from '../../src/regression/validate'
 import { formatGb } from '../../utils/format'
 import { dateUtc, formatRelative } from '../../utils/time'
@@ -74,14 +74,30 @@ const runKind = (lane: PackLane, wf: string, entry: IndexEntry): DotKind => {
     return dotKind(cell ? cellState(cell, wf, lane.info.goldens) : null)
 }
 
-/** The dot kinds the section shows, for a legend of only those. */
-function presentKinds(lanes: PackLane[]): DotKind[] {
-    const seen = new Set<DotKind>()
+/**
+ * The dot kinds the section shows, for a legend of only those. A kind that a smoke-level
+ * cell shows under other words is listed again with those words.
+ */
+function presentKinds(lanes: PackLane[]): { kind: DotKind; level?: CheckLevel }[] {
+    // Noted by the words a dot goes under, so a smoke-level cell of a kind without smoke
+    // words (an execution error, say) counts for the kind's own entry.
+    const seen = new Set<string>()
     for (const lane of lanes) {
         const runs = shownRuns(lane)
-        for (const pw of lane.workflows) for (const entry of runs) seen.add(runKind(lane, pw.wf, entry))
+        for (const pw of lane.workflows) {
+            for (const entry of runs) {
+                seen.add(dotText(runKind(lane, pw.wf, entry), entry.w[pw.wf]?.l))
+            }
+        }
     }
-    return LEGEND_ORDER.filter((kind) => seen.has(kind))
+    const plain = LEGEND_ORDER.filter((kind) => seen.has(dotText(kind)))
+    const smoke = LEGEND_ORDER.filter(
+        (kind) => dotText(kind, 'smoke') !== dotText(kind) && seen.has(dotText(kind, 'smoke'))
+    )
+    return [
+        ...plain.map((kind) => ({ kind })),
+        ...smoke.map((kind) => ({ kind, level: 'smoke' as const })),
+    ]
 }
 
 /** Hover text of one run dot: workflow, commit, date, verdict, numbers, and any pack that did not import. */
@@ -89,7 +105,7 @@ function dotLabel(wf: string, entry: IndexEntry, kind: DotKind): string {
     const cell = entry.w[wf]
     const head = `${wf} · ${entry.c.slice(0, 7)} · ${dateUtc(entry.t)}`
     if (!cell) return `${head} · not run at this commit`
-    const facts: string[] = [dotText(kind)]
+    const facts: string[] = [dotText(kind, cell.l)]
     if (cell.exec != null) facts.push(`${cell.exec.toFixed(1)}s`)
     if (cell.vram != null) facts.push(formatGb(cell.vram))
     if (cell.g) facts.push(`golden ${cell.g}`)
@@ -165,7 +181,9 @@ function Row({
     registry: PackRegistry | null | undefined
 }) {
     const state = cellState(pw.cell, pw.wf, lane.info.goldens)
-    const tag = pw.cell.g ?? lane.info.goldens?.[pw.wf]?.tag ?? null
+    // A smoke-level workflow has no golden, whatever the lane still lists under its id.
+    const laneTag = lane.info.goldens?.[pw.wf]?.tag
+    const tag = state.level === 'smoke' ? null : pw.cell.g ?? laneTag ?? null
     const red = state.verdict === 'fail' || state.verdict === 'execution_error'
     return (
         <tr className={`transition-colors hover:bg-smoke-200/60 dark:hover:bg-charcoal-700/40 ${red ? 'bg-red-500/[0.06] dark:bg-red-500/[0.08]' : ''}`}>
@@ -179,7 +197,7 @@ function Row({
                 </Link>
             </td>
             <td className={`${td} whitespace-nowrap`}>
-                <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
+                <RegressionBadge state={state} />
             </td>
             <td className={`${td} whitespace-nowrap`}>
                 <RunDots lane={lane} wf={pw.wf} />
@@ -302,10 +320,10 @@ export const PacksOnGpu: React.FC<{ packs: PackLanesState }> = ({ packs }) => {
             ))}
             {legend.length > 0 && (
                 <ul className={`mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] ${dim}`}>
-                    {legend.map((kind) => (
-                        <li key={kind} className="flex items-center gap-1.5">
+                    {legend.map(({ kind, level }) => (
+                        <li key={`${level ?? ''}${kind}`} className="flex items-center gap-1.5">
                             <WorkflowDot kind={kind} />
-                            {dotText(kind)}
+                            {dotText(kind, level)}
                         </li>
                     ))}
                 </ul>

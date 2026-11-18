@@ -13,6 +13,7 @@ import { RegressionBadge, badgeMeta, displayVerdict, overallDisplay } from '../.
 import type { DisplayState } from '../../../components/RegressionBadge'
 import { ReblessCallout } from '../../../components/ReblessCallout'
 import { RegressionSummaryHeader } from '../../../components/RegressionSummaryHeader'
+import { SmokeChecks } from '../../../components/SmokeChecks'
 import { Surface, SectionTitle } from '../../../components/Surface'
 import { TextOutputDiff } from '../../../components/TextOutputDiff'
 import { dotKind, entryOverall } from '../../../components/WorkflowDots'
@@ -41,6 +42,7 @@ import {
     shardsAround,
 } from '../../../src/regression/indexOrder'
 import { isRetiredLane, orderedLaneIds } from '../../../src/regression/lanes'
+import { heldBack, readSmoke } from '../../../src/regression/smoke'
 import type {
     CommitMeta,
     IndexEntry,
@@ -122,8 +124,16 @@ function workflowState(
     cell: IndexWorkflowCell | undefined,
     goldenSha: string | null | undefined
 ): DisplayState {
-    return displayVerdict(result.verdict, cell?.sha ?? result.output_sha256, goldenSha, cell?.d ?? null)
+    return displayVerdict(
+        result.verdict,
+        cell?.sha ?? result.output_sha256,
+        goldenSha,
+        cell?.d ?? null,
+        result.level
+    )
 }
+
+const NO_NAMES: ReadonlySet<string> = new Set()
 
 function WorkflowCard({
     branch,
@@ -158,8 +168,18 @@ function WorkflowCard({
     // Output and figure links are built from the workflow id and file names the results
     // carry; one that is not a plain path segment is not linked at all.
     const linkable = isWorkflowId(result.workflow_id)
+    // A smoke-level result is checked, not compared: its card shows what the checks found
+    // in place of metrics, and offers no re-bless. A smoke run keeps a large output that
+    // does not repeat off the results branch, so such a file is not shown or linked here.
+    const smoke = result.level === 'smoke' ? readSmoke(result.smoke) : null
+    const held = smoke ? heldBack(smoke) : NO_NAMES
     const pngs = (run?.outputs ?? []).filter(
-        (o) => linkable && isPathSegment(o.filename) && o.filename.endsWith('.png') && !o.truncated
+        (o) =>
+            linkable &&
+            isPathSegment(o.filename) &&
+            o.filename.endsWith('.png') &&
+            !o.truncated &&
+            !held.has(o.filename)
     )
     // What the run saved besides PNGs: text is shown in place, anything else (a mesh, a
     // video) is listed as a link. A truncated file was not transferred, so it has no link.
@@ -171,10 +191,11 @@ function WorkflowCard({
     const vsGolden = result.vs_golden
     const diffFile = vsGolden?.first_diff?.file
     const texts = nonPng
-        .filter((o) => TEXT_OUTPUT.test(o.filename) && !o.truncated)
+        .filter((o) => TEXT_OUTPUT.test(o.filename) && !o.truncated && !held.has(o.filename))
         .sort((a, b) => Number(b.filename === diffFile) - Number(a.filename === diffFile))
         .slice(0, MAX_TEXTS)
-    const files = nonPng.filter((o) => !texts.includes(o))
+    // The table of checked files already lists and links every file of a smoke run.
+    const files = smoke && smoke.files.length > 0 ? [] : nonPng.filter((o) => !texts.includes(o))
     // The golden's text is fetched only when a text comparison says the run differs from
     // it. The tag is the one the run was compared with, not the one blessed now.
     const goldenTag = result.golden_tag
@@ -227,7 +248,7 @@ function WorkflowCard({
                     <h3 className="break-all text-lg font-bold text-charcoal-800 dark:text-white">
                         {result.workflow_id}
                     </h3>
-                    <RegressionBadge verdict={state.verdict} inherited={state.inherited} />
+                    <RegressionBadge state={state} />
                 </div>
                 <div className="text-xs text-ash-500 dark:text-smoke-800">
                     {result.gpu_name && <span>{result.gpu_name} · </span>}
@@ -315,15 +336,26 @@ function WorkflowCard({
             )}
 
             <div className="mt-4">
-                <MetricTable
-                    vsGolden={result.vs_golden}
-                    vsPrevious={result.vs_previous}
-                    thresholds={result.thresholds_used}
-                    noiseFloor={noiseFloor}
-                />
+                {smoke ? (
+                    <SmokeChecks
+                        smoke={result.smoke}
+                        hrefFor={(name) =>
+                            linkable && isPathSegment(name)
+                                ? outputUrl(branch, commit, result.workflow_id, name, lane)
+                                : null
+                        }
+                    />
+                ) : (
+                    <MetricTable
+                        vsGolden={result.vs_golden}
+                        vsPrevious={result.vs_previous}
+                        thresholds={result.thresholds_used}
+                        noiseFloor={noiseFloor}
+                    />
+                )}
             </div>
 
-            {state.verdict === 'fail' && !retired && (
+            {state.verdict === 'fail' && !retired && !smoke && (
                 <ReblessCallout workflowId={result.workflow_id} commit={commit} lane={lane} />
             )}
 
@@ -561,7 +593,7 @@ const notRun = (commit: string): LanePillStatus => ({
 
 const verdictStatus = (overall: DisplayState, commit: string): LanePillStatus => ({
     kind: dotKind(overall),
-    text: `${badgeMeta(overall.verdict, overall.inherited).text} at ${commit.slice(0, 7)}`,
+    text: `${badgeMeta(overall).text} at ${commit.slice(0, 7)}`,
 })
 
 /**
@@ -839,7 +871,7 @@ export default function RegressionCommitPage() {
                         <span>
                             Commit <span className="font-mono">{commit.slice(0, 7)}</span>
                         </span>
-                        <RegressionBadge verdict={overall.verdict} inherited={overall.inherited} />
+                        <RegressionBadge state={overall} />
                     </h1>
                     <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
                         Fixed-seed output comparison on{' '}

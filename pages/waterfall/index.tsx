@@ -9,12 +9,19 @@ import { Pager } from '../../components/Pager'
 import { RegressionBadge, badgeMeta, changedHere } from '../../components/RegressionBadge'
 import type { DisplayState } from '../../components/RegressionBadge'
 import { Surface } from '../../components/Surface'
-import { DotLegend, WorkflowDots, cellState, cellStates, entryOverall } from '../../components/WorkflowDots'
+import {
+    DotLegend,
+    WorkflowDots,
+    cellState,
+    cellStates,
+    entryOverall,
+    hasSmokeCells,
+} from '../../components/WorkflowDots'
 import type { CellState } from '../../components/WorkflowDots'
 import { COMFY_REPO, useIndexHeads, useLanes } from '../../src/regression/client'
-import { DEFAULT_BRANCH, useBranchParam } from '../../src/regression/branchParam'
+import { DEFAULT_BRANCH, allResultsHref, useBranchParam } from '../../src/regression/branchParam'
 import { headMayOmit, headWindowStart } from '../../src/regression/indexOrder'
-import { laneTag, orderedLaneIds } from '../../src/regression/lanes'
+import { isLongCadenceLane, laneTag, orderedLaneIds } from '../../src/regression/lanes'
 import type { IndexEntry, IndexHead, LaneInfo } from '../../src/regression/types'
 import { commitPageHref, isBranchName, isPrNumber } from '../../src/regression/validate'
 import { orderWorkflows } from '../../src/regression/workflows'
@@ -23,6 +30,7 @@ import { formatRelative } from '../../utils/time'
 const PAGE_SIZE = 30
 const dim = 'text-ash-500 dark:text-smoke-800'
 const quiet = 'text-[11px] text-ash-500/70 dark:text-smoke-800/70'
+const laneLink = 'font-medium text-sapphire-700 dark:text-electric hover:underline'
 // The Commit column's text width: narrow on a phone so the first lane's verdict is on screen.
 const commitWidth = 'max-w-[9rem] sm:max-w-[22rem]'
 // Cell padding, tighter on a phone.
@@ -247,14 +255,14 @@ function LaneCell({ branch, row, col }: { branch: string; row: Row; col: LaneCol
         }
         return <span className={quiet}>not run</span>
     }
-    const verdict = badgeMeta(run.overall.verdict, run.overall.inherited).text
+    const verdict = badgeMeta(run.overall).text
     return (
         <Link
             href={commitPageHref(branch, row.c, col.id)}
             aria-label={`${col.info.label} at ${row.c.slice(0, 7)}: ${verdict}. Open the commit page`}
             className="-m-1.5 flex w-max flex-col items-start gap-1.5 rounded-lg p-1.5 transition-colors hover:bg-smoke-200/70 hover:ring-1 hover:ring-electric/40 dark:hover:bg-charcoal-700/50"
         >
-            <RegressionBadge verdict={run.overall.verdict} inherited={run.overall.inherited} plain />
+            <RegressionBadge state={run.overall} plain />
             {run.cells.length > 0 && <WorkflowDots cells={run.cells} compact />}
         </Link>
     )
@@ -339,7 +347,11 @@ export default function WaterfallPage() {
     const lanesQuery = useLanes()
     const lanes = lanesQuery.data
     const validBranch = isBranchName(branch)
-    const ids = router.isReady && validBranch ? orderedLaneIds(lanes) : []
+    // A nightly or weekly lane tests one commit of many, so its column would read "not run"
+    // on nearly every row. Such a lane gets no column, and a link to its own history.
+    const laneIds = router.isReady && validBranch ? orderedLaneIds(lanes) : []
+    const ids = laneIds.filter((id) => !isLongCadenceLane(lanes?.lanes[id]))
+    const longCadenceIds = laneIds.filter((id) => isLongCadenceLane(lanes?.lanes[id]))
     const heads = useIndexHeads(ids.map((id) => ({ branch, lane: id })))
 
     const columns: LaneColumn[] = lanes
@@ -497,7 +509,9 @@ export default function WaterfallPage() {
                         </table>
                     </div>
                     <div className="flex flex-col gap-1.5 border-t border-smoke-200 dark:border-charcoal-400/40 px-5 py-2">
-                        <DotLegend />
+                        <DotLegend
+                            smoke={columns.some((c) => hasSmokeCells(c.head?.entries ?? []))}
+                        />
                         <span className={`text-[11px] ${dim}`}>
                             <span className="font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
                                 lanes differ
@@ -542,6 +556,21 @@ export default function WaterfallPage() {
                         Every tested commit across lanes. A cell is that lane{"'"}s verdict for the commit; click it
                         for the commit page.
                     </p>
+                    {lanes && longCadenceIds.length > 0 && (
+                        <p className={`mt-1 text-xs ${dim}`}>
+                            Nightly and weekly lanes have no column here: one run of theirs
+                            covers many commits. Their history is on All Results:{' '}
+                            {longCadenceIds.map((id, i) => (
+                                <React.Fragment key={id}>
+                                    {i > 0 && ', '}
+                                    <Link href={allResultsHref(id, branch)} className={laneLink}>
+                                        {lanes.lanes[id].label}
+                                    </Link>
+                                </React.Fragment>
+                            ))}
+                            .
+                        </p>
+                    )}
                 </div>
                 <ClearableLabel
                     id="waterfall-branch"

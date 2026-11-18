@@ -8,6 +8,13 @@ const own = (obj: object, key: string) => Object.prototype.hasOwnProperty.call(o
 /** A lane that no longer runs (cadence "retired"): its history stays published and readable. */
 export const isRetiredLane = (info: LaneInfo | null | undefined): boolean => info?.cadence === 'retired'
 
+/**
+ * A nightly or weekly lane: one run of it covers many commits, so most commits have no
+ * run on it and the commit a run tested is only the newest of those it covered.
+ */
+export const isLongCadenceLane = (info: LaneInfo | null | undefined): boolean =>
+    info?.cadence === 'nightly' || info?.cadence === 'weekly'
+
 /** Retired, or kept under role "legacy": listed after every active lane. */
 const isLegacyLane = (info: LaneInfo | null | undefined): boolean =>
     isRetiredLane(info) || info?.role === 'legacy'

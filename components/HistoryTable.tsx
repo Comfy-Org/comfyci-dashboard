@@ -2,11 +2,41 @@ import Link from 'next/link'
 import React from 'react'
 import { RegressionBadge, changedHere, overallDisplay } from './RegressionBadge'
 import { Surface } from './Surface'
-import { DotLegend, WorkflowDots, cellStates, entryStates } from './WorkflowDots'
+import { DotLegend, WorkflowDots, cellStates, entryStates, hasSmokeCells } from './WorkflowDots'
 import { COMFY_REPO } from '../src/regression/client'
-import type { IndexEntry, LaneInfo } from '../src/regression/types'
-import { commitPageHref, isCommitSha, isPrNumber, workflowAnchor } from '../src/regression/validate'
+import type { CommitRange, IndexEntry, LaneInfo } from '../src/regression/types'
+import {
+    comfyCompareUrl,
+    commitPageHref,
+    isCommitSha,
+    isPrNumber,
+    workflowAnchor,
+} from '../src/regression/validate'
 import { formatRelative } from '../utils/time'
+
+/**
+ * The commits a run covered for one workflow, after a failure that started at that run:
+ * on a nightly or weekly lane any of them may be the cause. Nothing for a range of one
+ * commit or of an unknown size. Linked only when the published link is GitHub's compare page.
+ */
+function CoveredCommits({ range }: { range: CommitRange | undefined }) {
+    const n = range != null && typeof range === 'object' ? range.n : null
+    if (typeof n !== 'number' || n <= 1) return null
+    const href = comfyCompareUrl(range?.url)
+    const text = `${n} commits since its last result`
+    const quiet = 'text-[11px] text-ash-500 dark:text-smoke-800'
+    if (!href) return <span className={quiet}>{text}</span>
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${quiet} hover:text-sapphire-700 dark:hover:text-electric hover:underline`}
+        >
+            {text}
+        </a>
+    )
+}
 
 function HistoryRow({
     branch,
@@ -112,7 +142,7 @@ function HistoryRow({
             </td>
             <td className="px-5 py-3 align-top">
                 <div className="flex flex-col items-start gap-1">
-                    <RegressionBadge verdict={overall.verdict} inherited={overall.inherited} />
+                    <RegressionBadge state={overall} />
                     {entry.infra && overall.verdict !== 'infra_error' && (
                         <span className="max-w-[12rem] truncate text-[11px] text-amber-600 dark:text-amber-500" title={infraIds.join(', ')}>
                             {infraIds.length === 0
@@ -134,7 +164,7 @@ function HistoryRow({
                     <ul className="mt-2 flex max-w-[28rem] flex-col gap-1">
                         {attention.map((a) => (
                             <li key={a.wf} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                <RegressionBadge verdict={a.state.verdict} inherited={a.state.inherited} />
+                                <RegressionBadge state={a.state} />
                                 <Link
                                     href={`${commitHref}#${workflowAnchor(a.wf)}`}
                                     className="min-w-0 break-all font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100 hover:underline"
@@ -145,6 +175,9 @@ function HistoryRow({
                                     <span className="font-mono text-[11px] tabular-nums text-ash-500 dark:text-smoke-800">
                                         {a.cell.exec.toFixed(1)}s
                                     </span>
+                                )}
+                                {changedHere(a.state) && (
+                                    <CoveredCommits range={entry.wr?.[a.wf]} />
                                 )}
                             </li>
                         ))}
@@ -199,7 +232,7 @@ export const HistoryTable: React.FC<{
             </table>
         </div>
         <div className="border-t border-smoke-200 dark:border-charcoal-400/40 px-5 py-2">
-            <DotLegend />
+            <DotLegend smoke={hasSmokeCells(entries)} />
         </div>
     </Surface>
 )

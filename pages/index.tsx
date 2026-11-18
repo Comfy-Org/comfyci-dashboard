@@ -95,7 +95,14 @@ function LatestRunCard({
                 >
                     {latest.commit.slice(0, 12)}
                 </Link>
-                {summary && <RegressionBadge verdict={summary.overall === 'pass' ? 'pass' : 'fail'} />}
+                {summary && (
+                    <RegressionBadge
+                        state={{
+                            verdict: summary.overall === 'pass' ? 'pass' : 'fail',
+                            inherited: false,
+                        }}
+                    />
+                )}
             </div>
             <p className="mt-1 text-xs text-ash-500 dark:text-smoke-800">
                 {new Date(latest.run_ts * 1000).toLocaleString()}
@@ -111,7 +118,9 @@ function LatestRunCard({
                             <span className="font-semibold text-charcoal-800 dark:text-smoke-100">
                                 {wf.workflow_id}
                             </span>
-                            <RegressionBadge verdict={wf.verdict} />
+                            <RegressionBadge
+                                state={displayVerdict(wf.verdict, null, null, null, wf.level)}
+                            />
                         </Link>
                     ))}
                 </div>
@@ -171,8 +180,10 @@ function LaneKpis({
         ? workflows.flatMap((wf) => {
               const cell = latest.w[wf]
               if (!cell) return []
-              const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
-              return verdict === 'fail' || verdict === 'execution_error' ? [{ wf, verdict }] : []
+              const { verdict, level } = cellState(cell, wf, goldens)
+              if (verdict === 'execution_error') return [`${wf} (execution error)`]
+              if (verdict !== 'fail') return []
+              return [level === 'smoke' ? `${wf} (smoke check failed)` : wf]
           })
         : []
     return (
@@ -187,13 +198,7 @@ function LaneKpis({
             <StatCard
                 label="Open Regressions"
                 value={open.length}
-                sub={
-                    open.length
-                        ? open
-                              .map((o) => (o.verdict === 'execution_error' ? `${o.wf} (execution error)` : o.wf))
-                              .join(', ')
-                        : 'no drift in the latest run'
-                }
+                sub={open.length ? open.join(', ') : 'no drift in the latest run'}
                 dotClass="bg-red-600 dark:bg-red-400"
                 valueClass={
                     open.length ? 'text-red-600 dark:text-red-400' : 'text-charcoal-400 dark:text-smoke-500'
@@ -243,14 +248,19 @@ function Trends({
 
     // Three buckets: drifted (a card), stable (compared at least once, never moved), and
     // "without comparison" (only infra errors or missing baselines, so nothing is known).
+    // A smoke-level run compares nothing, so it counts for none of them: a workflow with
+    // no other run in the window is only named as being at smoke level.
     const drifted: DriftRow[] = []
     const stable: string[] = []
     const unscored: string[] = []
+    const smoke: string[] = []
     let unseen = 0
     for (const wf of workflows) {
-        const runs = window.filter((e) => e.w[wf])
+        const ran = window.filter((e) => e.w[wf])
+        const runs = ran.filter((e) => e.w[wf].l !== 'smoke')
         if (runs.length === 0) {
-            unseen += 1
+            if (ran.length > 0) smoke.push(wf)
+            else unseen += 1
             continue
         }
         const states = runs.map((e) => cellState(e.w[wf], wf, goldens))
@@ -273,12 +283,15 @@ function Trends({
         }
     }
     drifted.sort((a, b) => Number(b.open) - Number(a.open) || slotOf(workflows, a.wf) - slotOf(workflows, b.wf))
+    // A lane of smoke-level workflows only has no golden to drift from.
+    if (smoke.length > 0 && drifted.length + stable.length + unscored.length === 0) return null
 
     const summary = [
-        drifted.length === 0 && unscored.length === 0 && unseen === 0
+        drifted.length === 0 && unscored.length === 0 && unseen === 0 && smoke.length === 0
             ? `All ${stable.length} stable`
             : `${stable.length} stable`,
         unscored.length ? `${unscored.length} without comparison` : null,
+        smoke.length ? `${smoke.length} at smoke level, not compared` : null,
         unseen ? `${unseen} not run in this window` : null,
     ]
         .filter(Boolean)
@@ -290,7 +303,7 @@ function Trends({
                 <SectionTitle>Drift vs golden</SectionTitle>
                 <span className="text-[11px] text-ash-500 dark:text-smoke-800">
                     mean MSE per run · last {window.length} runs, oldest to newest · {drifted.length} of{' '}
-                    {workflows.length} drifted
+                    {workflows.length - smoke.length} drifted
                 </span>
             </div>
             {drifted.length > 0 && (
@@ -317,9 +330,7 @@ function Trends({
                                         {row.wf}
                                     </span>
                                     <span className="flex shrink-0 items-center gap-2">
-                                        {row.now && (
-                                            <RegressionBadge verdict={row.now.verdict} inherited={row.now.inherited} />
-                                        )}
+                                        {row.now && <RegressionBadge state={row.now} />}
                                         {hasMse && (
                                             <span className="font-mono text-xs tabular-nums text-ash-500 dark:text-smoke-800">
                                                 {latest == null ? '—' : latest.toFixed(3)}
@@ -357,6 +368,7 @@ function Trends({
                 title={[
                     stable.length ? `stable: ${stable.join(', ')}` : null,
                     unscored.length ? `without comparison: ${unscored.join(', ')}` : null,
+                    smoke.length ? `smoke level: ${smoke.join(', ')}` : null,
                 ]
                     .filter(Boolean)
                     .join('\n')}
@@ -496,7 +508,7 @@ function LaneHistory({
             // prunes it from first_bad; any other verdict leaves the regression open.
             const cell = entries[0]?.w[wf]
             if (!cell) return true
-            const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+            const { verdict } = cellState(cell, wf, goldens)
             return verdict !== 'pass' && verdict !== 'accepted'
         })
     const openChains: Record<string, FirstBad> = Object.fromEntries(firstBad)
