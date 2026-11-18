@@ -198,7 +198,10 @@ function Row({
                 </Link>
             </td>
             <td className={`${td} whitespace-nowrap`}>
-                <RegressionBadge state={state} />
+                {/* The hover text of a smoke-level result is a long sentence. As a tooltip in
+                    this cell it does not wrap, and it made the page scroll sideways on a phone:
+                    such a result gets the pill with a native title. */}
+                <RegressionBadge state={state} plain={state.level === 'smoke'} />
             </td>
             <td className={`${td} whitespace-nowrap`}>
                 <RunDots lane={lane} wf={pw.wf} />
