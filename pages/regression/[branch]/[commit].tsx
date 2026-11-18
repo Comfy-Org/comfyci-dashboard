@@ -14,10 +14,12 @@ import type { DisplayState } from '../../../components/RegressionBadge'
 import { ReblessCallout } from '../../../components/ReblessCallout'
 import { RegressionSummaryHeader } from '../../../components/RegressionSummaryHeader'
 import { Surface, SectionTitle } from '../../../components/Surface'
+import { TextOutputDiff } from '../../../components/TextOutputDiff'
 import { dotKind, entryOverall } from '../../../components/WorkflowDots'
 import {
     COMFY_REPO,
     figureUrl,
+    goldenOutputUrl,
     outputUrl,
     resolveLane,
     useIndexHead,
@@ -30,6 +32,7 @@ import {
 } from '../../../src/regression/client'
 import type { LaneRef } from '../../../src/regression/client'
 import { allResultsHref } from '../../../src/regression/branchParam'
+import { comparisonKind } from '../../../src/regression/comparison'
 import {
     entryTime,
     headMayOmit,
@@ -55,6 +58,13 @@ import {
     isWorkflowId,
     workflowAnchor,
 } from '../../../src/regression/validate'
+import { formatBytes } from '../../../utils/format'
+
+// The four formats ComfyUI's SaveText node writes. Each one shown costs a request, and a
+// second one for the golden's copy when the text differs, so a card shows the first few
+// and lists the rest as files.
+const TEXT_OUTPUT = /\.(txt|md|json|csv)$/
+const MAX_TEXTS = 4
 
 function Figure({ src, caption }: { src: string; caption: string }) {
     const [failed, setFailed] = React.useState(false)
@@ -151,6 +161,26 @@ function WorkflowCard({
     const pngs = (run?.outputs ?? []).filter(
         (o) => linkable && isPathSegment(o.filename) && o.filename.endsWith('.png') && !o.truncated
     )
+    // What the run saved besides PNGs: text is shown in place, anything else (a mesh, a
+    // video) is listed as a link. A truncated file was not transferred, so it has no link.
+    const nonPng = (run?.outputs ?? []).filter(
+        (o) => linkable && isPathSegment(o.filename) && !o.filename.endsWith('.png')
+    )
+    // The file the worker names as the first that differs from the golden leads, so it is
+    // never one of those cut.
+    const vsGolden = result.vs_golden
+    const diffFile = vsGolden?.first_diff?.file
+    const texts = nonPng
+        .filter((o) => TEXT_OUTPUT.test(o.filename) && !o.truncated)
+        .sort((a, b) => Number(b.filename === diffFile) - Number(a.filename === diffFile))
+        .slice(0, MAX_TEXTS)
+    const files = nonPng.filter((o) => !texts.includes(o))
+    // The golden's text is fetched only when a text comparison says the run differs from
+    // it. The tag is the one the run was compared with, not the one blessed now.
+    const goldenTag = result.golden_tag
+    const textDiffers =
+        vsGolden != null && comparisonKind(vsGolden) === 'text' && !vsGolden.identical && !vsGolden.error
+    const diffTag = textDiffers && isPathSegment(goldenTag) ? goldenTag : null
 
     const timings = run?.timings ?? result.timings
     const exec = timings?.prompt_exec_s
@@ -173,10 +203,20 @@ function WorkflowCard({
         ...(validation?.stripped_inputs ?? []).map((n) => `input not in this commit's schema, stripped: ${n}`),
         ...(validation?.filled_defaults ?? []).map((n) => `missing input filled from schema default: ${n}`),
     ]
+    // The worker draws figures for image comparisons only; a text result is read from the
+    // two texts instead.
     const showGoldenFigures =
-        linkable && result.vs_golden && !result.vs_golden.identical && !result.vs_golden.error
+        linkable &&
+        result.vs_golden &&
+        comparisonKind(result.vs_golden) === 'image' &&
+        !result.vs_golden.identical &&
+        !result.vs_golden.error
     const showPrevFigures =
-        linkable && result.vs_previous && !result.vs_previous.identical && !result.vs_previous.error
+        linkable &&
+        result.vs_previous &&
+        comparisonKind(result.vs_previous) === 'image' &&
+        !result.vs_previous.identical &&
+        !result.vs_previous.error
 
     return (
         // scroll-mt clears the sticky header when a #wf-<id> link lands on the card.
@@ -315,6 +355,55 @@ function WorkflowCard({
                             </figure>
                         ))}
                     </div>
+                </div>
+            )}
+
+            {texts.length > 0 && (
+                <div className="mt-4">
+                    <SectionTitle>Generated text</SectionTitle>
+                    <div className="mt-2 flex flex-col gap-4">
+                        {texts.map((o) => (
+                            <TextOutputDiff
+                                key={o.filename}
+                                filename={o.filename}
+                                bytes={o.bytes}
+                                sha256={o.sha256}
+                                url={outputUrl(branch, commit, result.workflow_id, o.filename, lane)}
+                                referenceUrl={
+                                    diffTag ? goldenOutputUrl(result.workflow_id, diffTag, o.filename, lane) : null
+                                }
+                                goldenTag={diffTag}
+                                firstDiff={vsGolden?.first_diff}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {files.length > 0 && (
+                <div className="mt-4">
+                    <SectionTitle>Files</SectionTitle>
+                    <ul className="mt-2 flex flex-col gap-1 font-mono text-xs">
+                        {files.map((o) => (
+                            <li key={o.filename} className="break-all text-ash-500 dark:text-smoke-800">
+                                {o.truncated ? (
+                                    <span className="text-charcoal-800 dark:text-smoke-200">{o.filename}</span>
+                                ) : (
+                                    <a
+                                        href={outputUrl(branch, commit, result.workflow_id, o.filename, lane)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-charcoal-800 dark:text-smoke-200 hover:text-sapphire-700 dark:hover:text-electric hover:underline"
+                                    >
+                                        {o.filename}
+                                    </a>
+                                )}
+                                {o.bytes != null && <> · {formatBytes(o.bytes)}</>}
+                                {o.sha256 && <> · sha256 {o.sha256.slice(0, 16)}…</>}
+                                {o.truncated && <> · not transferred, over the worker&apos;s size limit</>}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
             )}
 

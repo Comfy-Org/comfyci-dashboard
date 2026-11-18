@@ -232,6 +232,58 @@ export const outputUrl = (
         `${workflowDir(branch, commit, workflowId, lane)}/outputs/${checked('file name', filename, isPathSegment)}`
     )
 
+/**
+ * The golden's copy of an output file: the reference a run was compared with. Throws for
+ * a value that fails validation: callers check what they pass first.
+ */
+export const goldenOutputUrl = (workflowId: string, tag: string, filename: string, lane?: LaneRef | null) =>
+    resultUrl(
+        `${goldenDir(workflowId, lane)}/${checked('golden tag', tag, isPathSegment)}/outputs/${checked('file name', filename, isPathSegment)}`
+    )
+
+// ── Text outputs ──
+
+// A text output over this size is linked, not loaded into the page.
+export const TEXT_FILE_MAX_BYTES = 200_000
+
+/** A text file's content, or `tooLarge` for one over the size the page loads. */
+export type TextFile = { tooLarge: false; text: string } | { tooLarge: true; text: null }
+
+const TOO_LARGE: TextFile = { tooLarge: true, text: null }
+
+/** Fetches a published text file; a 404 or 403 (not published) is null, anything else throws. */
+export async function fetchTextOrNull(url: string, maxBytes = TEXT_FILE_MAX_BYTES): Promise<TextFile | null> {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (res.status === 404 || res.status === 403) return null
+    if (!res.ok) throw new Error(`${res.status} fetching ${url}`)
+    // The header is the size on the wire, which compression only makes smaller: over the
+    // cap there means over the cap. The text is measured again once it is read.
+    if (Number(res.headers.get('content-length')) > maxBytes) {
+        res.body?.cancel().catch(() => undefined)
+        return TOO_LARGE
+    }
+    const text = await res.text()
+    return text.length > maxBytes ? TOO_LARGE : { tooLarge: false, text }
+}
+
+// Only a checked path under the results base, the shape outputUrl and goldenOutputUrl build.
+const isResultUrl = (url: string) =>
+    url.startsWith(`${REGRESSION_BASE}/`) && RESULT_PATH.test(url.slice(REGRESSION_BASE.length + 1))
+
+/**
+ * A published text file by the URL outputUrl or goldenOutputUrl built for it. Data is
+ * null for a file that is not published. Any other URL is refused without a request.
+ */
+export const useTextFile = (url: string | null | undefined, enabled = true) =>
+    useQuery({
+        queryKey: ['regression-text', url ?? null],
+        queryFn: () =>
+            url != null && isResultUrl(url)
+                ? fetchTextOrNull(url)
+                : Promise.reject(new Error('Refusing to fetch an invalid results path')),
+        enabled: enabled && url != null,
+    })
+
 /** Throws for a value that fails validation: callers check what they pass first. */
 export const figureUrl = (
     branch: string,
