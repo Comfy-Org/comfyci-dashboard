@@ -3,8 +3,50 @@
 // commit time is unknown), ties by sha, so re-testing an older commit never moves it in
 // the history. A head keeps only the newest entries of that order while `count` stays the
 // lane's total, so a commit missing from a long lane's head may still have run.
-import type { IndexEntry, IndexHead } from './types'
+import type { IndexEntry, IndexHead, IndexWorkflowCell } from './types'
 import { monthKey } from '../../utils/time'
+
+/**
+ * The lane's latest run among entries in index order. A run that named its workflows
+ * (`named`) is a re-test or a first look, not the lane's run of its commit: the latest run
+ * is the newest without the mark, as the worker's `latest` is.
+ */
+export const latestFullRun = (entries: IndexEntry[]): IndexEntry | undefined =>
+    entries.find((e) => e.named !== true)
+
+/**
+ * Where a workflow stands now: its cell in the lane's latest run, or in a run of named
+ * workflows after it, whichever is newer. On a lane without a full run it is the
+ * workflow's newest cell.
+ */
+export function currentCell(entries: IndexEntry[], wf: string): IndexWorkflowCell | undefined {
+    for (const e of entries) {
+        if (e.w[wf]) return e.w[wf]
+        if (e.named !== true) return undefined
+    }
+    return undefined
+}
+
+// A run of named workflows that could not test a workflow says nothing about it.
+const saysNothing = (e: IndexEntry, wf: string): boolean => e.named === true && e.w[wf]?.v === 'infra_error'
+
+/**
+ * Where a workflow stands for the count of open failures: currentCell, read past the runs
+ * of named workflows that could not test it. Such a result closes no failing chain, so it
+ * must not take the workflow out of the count either. The latest full run still counts as
+ * it reads, tested or not.
+ */
+export function standingCell(entries: IndexEntry[], wf: string): IndexWorkflowCell | undefined {
+    for (const e of entries) {
+        if (e.w[wf] && !saysNothing(e, wf)) return e.w[wf]
+        if (e.named !== true) return undefined
+    }
+    return undefined
+}
+
+/** A workflow's newest result that says something: the fallback when its chain is open. */
+export const newestTelling = (entries: IndexEntry[], wf: string): IndexWorkflowCell | undefined =>
+    entries.find((e) => e.w[wf] && !saysNothing(e, wf))?.w[wf]
 
 /** The worker's sort time for an entry: commit time when known, else run time. */
 export const entryTime = (e: IndexEntry): number => e.m?.ct || e.t

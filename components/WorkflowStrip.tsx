@@ -3,6 +3,7 @@ import React from 'react'
 import { RegressionBadge } from './RegressionBadge'
 import { Surface, SectionTitle } from './Surface'
 import { WorkflowDot, cellState, dotKind, driftStartedHere } from './WorkflowDots'
+import { currentCell, latestFullRun } from '../src/regression/indexOrder'
 import type { FirstBad, IndexEntry, LaneInfo } from '../src/regression/types'
 import { commitPageHref } from '../src/regression/validate'
 import { formatGb } from '../utils/format'
@@ -30,36 +31,48 @@ function Tile({
     goldens?: LaneInfo['goldens']
     fb?: FirstBad
 }) {
-    const cell = entries[0]?.w[wf]
+    const cell = currentCell(entries, wf)
     const state = cell ? cellState(cell, wf, goldens) : null
     const runs = entries.filter((e) => e.w[wf])
     // Newest run where this workflow's drift or execution failure began; a drift that
-    // was later accepted still has one, and is labelled as such.
-    const lastDrift = runs.find((e) => driftStartedHere(e.w[wf]))
+    // was later accepted still has one, and is labelled as such. A smoke check has no
+    // drift that begins: the newest run that failed one is named, standing or not.
+    const lastDrift = runs.find((e) => {
+        const c = e.w[wf]
+        return driftStartedHere(c) || (c.l === 'smoke' && c.v === 'fail')
+    })
     const lastDriftState = lastDrift ? cellState(lastDrift.w[wf], wf, goldens) : null
+    // A smoke-level workflow has no golden and nothing that drifts: its tile names no
+    // tag, and its last line counts failed smoke checks.
+    const smoke = (cell ?? runs[0]?.w[wf])?.l === 'smoke'
     const facts: string[] = []
     if (cell?.exec != null) facts.push(`${cell.exec.toFixed(1)}s`)
     if (cell?.vram != null) facts.push(formatGb(cell.vram))
-    const tag = cell?.g ?? goldens?.[wf]?.tag
+    const tag = smoke ? null : cell?.g ?? goldens?.[wf]?.tag
     if (tag) facts.push(`golden ${tag}`)
     const line2 = cell
         ? facts.join(' · ') || '—'
         : `not in the latest run${runs[0] ? ` · last seen ${formatRelative(runs[0].t)}` : ''}`
 
+    // The badge of a failed smoke check is long. In such a tile the id keeps a readable
+    // width and the badge drops to a line of its own when the two do not fit.
+    const head = smoke ? 'flex flex-wrap items-center gap-x-2 gap-y-1' : 'flex items-center gap-2'
+    const idClass = [
+        smoke ? 'min-w-[5rem]' : 'min-w-0',
+        'flex-1 truncate font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100',
+    ].join(' ')
+
     return (
         <li className="min-w-0 rounded-xl border border-smoke-300 dark:border-charcoal-400/60 px-3 py-2">
-            <div className="flex items-center gap-2">
+            <div className={head}>
                 <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums text-ash-500 dark:text-smoke-800">
                     #{index}
                 </span>
                 <WorkflowDot kind={dotKind(state)} />
-                <span
-                    className="min-w-0 flex-1 truncate font-mono text-xs font-semibold text-charcoal-800 dark:text-smoke-100"
-                    title={wf}
-                >
+                <span className={idClass} title={wf}>
                     {wf}
                 </span>
-                {state && <RegressionBadge verdict={state.verdict} inherited={state.inherited} />}
+                {state && <RegressionBadge state={state} />}
             </div>
             <div
                 className="mt-1 truncate font-mono text-[11px] tabular-nums text-ash-500 dark:text-smoke-800"
@@ -79,7 +92,11 @@ function Tile({
                     </span>
                 ) : lastDrift ? (
                     <>
-                        {lastDriftState?.verdict === 'execution_error' ? 'last execution error' : 'last drift'}{' '}
+                        {lastDriftState?.verdict === 'execution_error'
+                            ? 'last execution error'
+                            : lastDriftState?.level === 'smoke'
+                            ? 'last failed smoke check'
+                            : 'last drift'}{' '}
                         {formatRelative(lastDrift.t)} ·{' '}
                         <Link href={commitPageHref(branch, lastDrift.c, laneId)} className={shaClass}>
                             {lastDrift.c.slice(0, 7)}
@@ -88,6 +105,8 @@ function Tile({
                     </>
                 ) : runs.length <= 1 ? (
                     'first run'
+                ) : smoke ? (
+                    `no failed smoke check in ${runs.length} runs`
                 ) : (
                     `no drift in ${runs.length} runs`
                 )}
@@ -110,22 +129,36 @@ export const WorkflowStrip: React.FC<{
     goldens?: LaneInfo['goldens']
     /** Open first_bad chains, already filtered by the page's banner rule. */
     firstBad: Record<string, FirstBad>
-}> = ({ branch, laneId, entries, workflows, goldens, firstBad }) => {
+    /** The lane has smoke-level results only: no goldens to order by. */
+    smokeOnly?: boolean
+    /** When the lane's latest full run ran, also when it is older than the loaded runs. */
+    lastRunTs?: number | null
+}> = ({ branch, laneId, entries, workflows, goldens, firstBad, smokeOnly = false, lastRunTs = null }) => {
     const [showAll, setShowAll] = React.useState(false)
-    const latest = entries[0]
-    if (!latest || workflows.length === 0) return null
+    if (entries.length === 0 || workflows.length === 0) return null
 
+    // The latest run is the newest that did not name its workflows. A run of named
+    // workflows after it gives those workflows a newer result, and each tile shows that one.
+    const latest = latestFullRun(entries)
     const states = workflows.map((wf) => {
-        const cell = latest.w[wf]
+        const cell = currentCell(entries, wf)
         return cell ? cellState(cell, wf, goldens) : null
     })
     const notRun = states.filter((s) => s === null).length
     const passing = states.filter((s) => s?.verdict === 'pass').length
     const failing = states.filter((s) => s?.verdict === 'fail' || s?.verdict === 'execution_error').length
     const other = workflows.length - notRun - passing - failing
+    const inLatest = latest ? workflows.filter((wf) => latest.w[wf]).length : 0
+    // A full run older than every loaded run is still the lane's latest: the tiles cannot
+    // count its workflows, and the caption says when it ran.
+    const lastTs = latest?.t ?? lastRunTs
     const caption = [
-        `${workflows.length - notRun} of ${workflows.length} in the latest run`,
-        formatRelative(latest.t),
+        latest
+            ? `${inLatest} of ${workflows.length} in the latest run`
+            : lastTs != null
+            ? 'latest full run'
+            : 'no full run yet',
+        lastTs != null ? formatRelative(lastTs) : null,
         `${passing} pass`,
         failing ? `${failing} failing` : null,
         other ? `${other} other` : null,
@@ -143,7 +176,14 @@ export const WorkflowStrip: React.FC<{
         <Surface className="mb-6 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <SectionTitle>Workflows</SectionTitle>
-                <span className="text-[11px] text-ash-500 dark:text-smoke-800" title="Lane order: blessed goldens first, then unblessed ids">
+                <span
+                    className="text-[11px] text-ash-500 dark:text-smoke-800"
+                    title={
+                        smokeOnly
+                            ? 'Lane order: sorted by id'
+                            : 'Lane order: blessed goldens first, then unblessed ids'
+                    }
+                >
                     {caption}
                 </span>
             </div>

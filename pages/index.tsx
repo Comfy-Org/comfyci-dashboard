@@ -14,7 +14,13 @@ import { Sparkline } from '../components/Sparkline'
 import { StaleBanner } from '../components/StaleBanner'
 import { StatCard } from '../components/StatsDashboard'
 import { Surface, SectionTitle } from '../components/Surface'
-import { cellState, driftStartedHere, driftedCell, scoredCell } from '../components/WorkflowDots'
+import {
+    cellState,
+    driftStartedHere,
+    driftedCell,
+    onlySmokeCells,
+    scoredCell,
+} from '../components/WorkflowDots'
 import { WorkflowStrip } from '../components/WorkflowStrip'
 import {
     resolveLane,
@@ -26,8 +32,15 @@ import {
 } from '../src/regression/client'
 import type { LaneRef } from '../src/regression/client'
 import { DEFAULT_BRANCH, useBranchParam } from '../src/regression/branchParam'
-import { entryTime, mergeIndexEntries } from '../src/regression/indexOrder'
-import { laneLatest } from '../src/regression/lanes'
+import {
+    currentCell,
+    newestTelling,
+    standingCell,
+    entryTime,
+    latestFullRun,
+    mergeIndexEntries,
+} from '../src/regression/indexOrder'
+import { isLongCadenceLane, laneLatest, laneRunCount } from '../src/regression/lanes'
 import type {
     FirstBad,
     IndexEntry,
@@ -45,6 +58,8 @@ const PAGE_SIZE = 25
 const NO_MONTHS: string[] = []
 const KPI_WINDOW = 30
 const SPARK_WINDOW = 60
+// The card the page's intro names.
+const PRIMARY_GPU = 'RTX 4090'
 
 /** The next monthly shard to fetch, or null when everything the index counts is loaded. */
 function nextShard(head: IndexHead, entries: IndexEntry[], loaded: string[]): string | null {
@@ -85,6 +100,9 @@ function LatestRunCard({
     const workflows = summary
         ? Object.values(summary.workflows).sort((a, b) => a.workflow_id.localeCompare(b.workflow_id))
         : []
+    // Smoke-level results alone decide the run: its badge takes their words, as each
+    // workflow's badge below does and as the commit page's title does.
+    const level = workflows.length > 0 && workflows.every((wf) => wf.level === 'smoke') ? 'smoke' : undefined
     return (
         <Surface className="p-5">
             <SectionTitle>Latest run on {branch}</SectionTitle>
@@ -95,7 +113,15 @@ function LatestRunCard({
                 >
                     {latest.commit.slice(0, 12)}
                 </Link>
-                {summary && <RegressionBadge verdict={summary.overall === 'pass' ? 'pass' : 'fail'} />}
+                {summary && (
+                    <RegressionBadge
+                        state={{
+                            verdict: summary.overall === 'pass' ? 'pass' : 'fail',
+                            inherited: false,
+                            level,
+                        }}
+                    />
+                )}
             </div>
             <p className="mt-1 text-xs text-ash-500 dark:text-smoke-800">
                 {new Date(latest.run_ts * 1000).toLocaleString()}
@@ -111,7 +137,9 @@ function LatestRunCard({
                             <span className="font-semibold text-charcoal-800 dark:text-smoke-100">
                                 {wf.workflow_id}
                             </span>
-                            <RegressionBadge verdict={wf.verdict} />
+                            <RegressionBadge
+                                state={displayVerdict(wf.verdict, null, null, null, wf.level)}
+                            />
                         </Link>
                     ))}
                 </div>
@@ -125,12 +153,14 @@ function FirstBadBanner({
     fb,
     branch,
     laneId,
+    longCadence,
     entries,
 }: {
     wf: string
     fb: FirstBad
     branch: string
     laneId: string
+    longCadence: boolean
     entries: IndexEntry[]
 }) {
     const subject = entries.find((e) => e.c === fb.commit)?.m?.s
@@ -145,6 +175,7 @@ function FirstBadBanner({
                 fb={fb}
                 branch={branch}
                 laneId={laneId}
+                longCadence={longCadence}
                 subject={subject}
                 dimClass="text-red-600/80 dark:text-red-400/80"
             />
@@ -156,25 +187,38 @@ function LaneKpis({
     entries,
     workflows,
     goldens,
+    firstBad,
+    smokeOnly,
+    lastRunTs,
 }: {
     entries: IndexEntry[]
     workflows: string[]
     goldens?: LaneInfo['goldens']
+    /** Open first_bad chains, already filtered by the page's banner rule. */
+    firstBad: Record<string, FirstBad>
+    /** The lane has smoke-level results only: failures, but no regression and no drift. */
+    smokeOnly: boolean
+    /** When the lane's latest full run ran, also when it is older than the loaded runs. */
+    lastRunTs: number | null
 }) {
-    const window = entries.slice(0, KPI_WINDOW)
+    // A run that named its workflows is not the lane's run of its commit: it is no run of
+    // the pass rate and not the last run. Its cells still say where those workflows stand.
+    const window = entries.filter((e) => e.named !== true).slice(0, KPI_WINDOW)
     const scored = window.filter((e) => !e.infra)
     const passed = scored.filter((e) => e.o === 'pass').length
     const infra = window.length - scored.length
-    const latest = entries[0]
     // Open: still drifting in the latest run (inherited or not), or unable to execute at all.
-    const open = latest
-        ? workflows.flatMap((wf) => {
-              const cell = latest.w[wf]
-              if (!cell) return []
-              const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
-              return verdict === 'fail' || verdict === 'execution_error' ? [{ wf, verdict }] : []
-          })
-        : []
+    // A workflow the latest run left out stays open while its failing chain is: it is read
+    // from its own newest result. A run of named workflows that could not test it is read
+    // past: it closes no chain, so the count and the banners agree.
+    const open = workflows.flatMap((wf) => {
+        const cell = standingCell(entries, wf) ?? (firstBad[wf] ? newestTelling(entries, wf) : undefined)
+        if (!cell) return []
+        const { verdict, level } = cellState(cell, wf, goldens)
+        if (verdict === 'execution_error') return [`${wf} (execution error)`]
+        if (verdict !== 'fail') return []
+        return [level === 'smoke' ? `${wf} (smoke check failed)` : wf]
+    })
     return (
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard
@@ -185,13 +229,13 @@ function LaneKpis({
                 valueClass="text-emerald-600 dark:text-emerald-400"
             />
             <StatCard
-                label="Open Regressions"
+                label={smokeOnly ? 'Open Failures' : 'Open Regressions'}
                 value={open.length}
                 sub={
                     open.length
-                        ? open
-                              .map((o) => (o.verdict === 'execution_error' ? `${o.wf} (execution error)` : o.wf))
-                              .join(', ')
+                        ? open.join(', ')
+                        : smokeOnly
+                        ? 'nothing failing in the latest run'
                         : 'no drift in the latest run'
                 }
                 dotClass="bg-red-600 dark:bg-red-400"
@@ -201,8 +245,8 @@ function LaneKpis({
             />
             <StatCard
                 label="Last Run"
-                value={latest ? formatRelative(latest.t) : '—'}
-                sub={latest ? new Date(latest.t * 1000).toLocaleString() : undefined}
+                value={lastRunTs != null ? formatRelative(lastRunTs) : '—'}
+                sub={lastRunTs != null ? new Date(lastRunTs * 1000).toLocaleString() : undefined}
                 dotClass="bg-sapphire-700 dark:bg-electric"
                 valueClass="text-sapphire-700 dark:text-electric"
             />
@@ -243,21 +287,28 @@ function Trends({
 
     // Three buckets: drifted (a card), stable (compared at least once, never moved), and
     // "without comparison" (only infra errors or missing baselines, so nothing is known).
+    // A smoke-level run compares nothing, so it counts for none of them: a workflow with
+    // no other run in the window is only named as being at smoke level.
     const drifted: DriftRow[] = []
     const stable: string[] = []
     const unscored: string[] = []
+    const smoke: string[] = []
     let unseen = 0
     for (const wf of workflows) {
-        const runs = window.filter((e) => e.w[wf])
+        const ran = window.filter((e) => e.w[wf])
+        const runs = ran.filter((e) => e.w[wf].l !== 'smoke')
         if (runs.length === 0) {
-            unseen += 1
+            if (ran.length > 0) smoke.push(wf)
+            else unseen += 1
             continue
         }
         const states = runs.map((e) => cellState(e.w[wf], wf, goldens))
         const offGolden = runs.filter((e, i) => driftedCell(e.w[wf], states[i])).length
         const scored = states.filter(scoredCell).length
         if (offGolden > 0) {
-            const now = states[0]
+            // The newest run that has the workflow, which is a smoke-level one for a
+            // workflow that has moved to smoke level since it drifted.
+            const now = cellState(ran[0].w[wf], wf, goldens)
             drifted.push({
                 wf,
                 scored,
@@ -273,12 +324,15 @@ function Trends({
         }
     }
     drifted.sort((a, b) => Number(b.open) - Number(a.open) || slotOf(workflows, a.wf) - slotOf(workflows, b.wf))
+    // A lane of smoke-level workflows only has no golden to drift from.
+    if (smoke.length > 0 && drifted.length + stable.length + unscored.length === 0) return null
 
     const summary = [
-        drifted.length === 0 && unscored.length === 0 && unseen === 0
+        drifted.length === 0 && unscored.length === 0 && unseen === 0 && smoke.length === 0
             ? `All ${stable.length} stable`
             : `${stable.length} stable`,
         unscored.length ? `${unscored.length} without comparison` : null,
+        smoke.length ? `${smoke.length} at smoke level, not compared` : null,
         unseen ? `${unseen} not run in this window` : null,
     ]
         .filter(Boolean)
@@ -290,7 +344,7 @@ function Trends({
                 <SectionTitle>Drift vs golden</SectionTitle>
                 <span className="text-[11px] text-ash-500 dark:text-smoke-800">
                     mean MSE per run · last {window.length} runs, oldest to newest · {drifted.length} of{' '}
-                    {workflows.length} drifted
+                    {workflows.length - smoke.length} drifted
                 </span>
             </div>
             {drifted.length > 0 && (
@@ -317,9 +371,7 @@ function Trends({
                                         {row.wf}
                                     </span>
                                     <span className="flex shrink-0 items-center gap-2">
-                                        {row.now && (
-                                            <RegressionBadge verdict={row.now.verdict} inherited={row.now.inherited} />
-                                        )}
+                                        {row.now && <RegressionBadge state={row.now} />}
                                         {hasMse && (
                                             <span className="font-mono text-xs tabular-nums text-ash-500 dark:text-smoke-800">
                                                 {latest == null ? '—' : latest.toFixed(3)}
@@ -357,6 +409,7 @@ function Trends({
                 title={[
                     stable.length ? `stable: ${stable.join(', ')}` : null,
                     unscored.length ? `without comparison: ${unscored.join(', ')}` : null,
+                    smoke.length ? `smoke level: ${smoke.join(', ')}` : null,
                 ]
                     .filter(Boolean)
                     .join('\n')}
@@ -494,24 +547,45 @@ function LaneHistory({
         .filter(([wf]) => {
             // A passing or re-blessed latest run closes the chain even before the worker
             // prunes it from first_bad; any other verdict leaves the regression open.
-            const cell = entries[0]?.w[wf]
+            const cell = currentCell(entries, wf)
             if (!cell) return true
-            const { verdict } = displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+            const { verdict } = cellState(cell, wf, goldens)
             return verdict !== 'pass' && verdict !== 'accepted'
         })
     const openChains: Record<string, FirstBad> = Object.fromEntries(firstBad)
+    const smokeOnly = onlySmokeCells(entries)
+    const latestTs = head.latest?.run_ts ?? latestFullRun(entries)?.t ?? null
+    // The tiles and the strip read the loaded runs. A head holds only the newest of them,
+    // so the lane's latest full run can be older than all of them: the head names it then.
+    const lastFullTs = latestFullRun(entries)?.t ?? head.latest?.run_ts ?? null
 
     return (
         <>
             <StaleBanner
-                latestTs={head.latest?.run_ts ?? entries[0]?.t ?? null}
+                latestTs={latestTs}
                 indexMissing={false}
                 cadence={lane.info?.cadence}
+                namedOnly={latestTs == null && entries.length > 0}
             />
             {firstBad.map(([wf, fb]) => (
-                <FirstBadBanner key={wf} wf={wf} fb={fb} branch={branch} laneId={lane.id} entries={entries} />
+                <FirstBadBanner
+                    key={wf}
+                    wf={wf}
+                    fb={fb}
+                    branch={branch}
+                    laneId={lane.id}
+                    longCadence={isLongCadenceLane(lane.info)}
+                    entries={entries}
+                />
             ))}
-            <LaneKpis entries={entries} workflows={workflows} goldens={goldens} />
+            <LaneKpis
+                entries={entries}
+                workflows={workflows}
+                goldens={goldens}
+                firstBad={openChains}
+                smokeOnly={smokeOnly}
+                lastRunTs={lastFullTs}
+            />
             <WorkflowStrip
                 branch={branch}
                 laneId={lane.id}
@@ -519,6 +593,8 @@ function LaneHistory({
                 workflows={workflows}
                 goldens={goldens}
                 firstBad={openChains}
+                smokeOnly={smokeOnly}
+                lastRunTs={lastFullTs}
             />
             <Trends branch={branch} laneId={lane.id} entries={entries} workflows={workflows} goldens={goldens} />
             {entries.length === 0 ? (
@@ -529,8 +605,11 @@ function LaneHistory({
                         branch={branch}
                         laneId={lane.id}
                         entries={pageEntries}
+                        history={entries}
                         workflows={workflows}
                         goldens={goldens}
+                        firstBad={openChains}
+                        smokeOnly={smokeOnly}
                     />
                     {failedShard && (
                         <FetchError
@@ -586,7 +665,14 @@ function resolveLookup(input: string, entries: IndexEntry[]): CommitLookup {
 /** A lane pill's dot: the lane's latest run on the branch, as lanes.json records it. */
 function latestStatus(lanes: LanesIndex, laneId: string, branch: string): LanePillStatus {
     const latest = laneLatest(lanes.lanes[laneId], branch)
-    if (!latest) return { kind: 'missing', text: `no runs on ${branch}` }
+    if (!latest) {
+        // Runs and no latest one: every run of the lane named its workflows.
+        const named = laneRunCount(lanes.lanes[laneId], branch) > 0
+        return {
+            kind: 'missing',
+            text: named ? `only runs of named workflows on ${branch}` : `no runs on ${branch}`,
+        }
+    }
     return {
         kind: latest.overall === 'pass' ? 'pass' : 'fail',
         text: `latest run on ${branch}: ${latest.overall} at ${latest.commit.slice(0, 7)}, ${formatRelative(latest.run_ts)}`,
@@ -616,6 +702,10 @@ export default function AllResultsPage() {
         olderMonths
     )
     const lookup = resolveLookup(commitLookup, validBranch ? runs.entries : [])
+    // The intro speaks of every commit and of RTX 4090s. That is not so on a nightly or
+    // weekly lane, which tests one commit of many, or on a lane that names another card.
+    const otherLane =
+        isLongCadenceLane(lane.info) || (!!lane.info?.gpu && lane.info.gpu !== PRIMARY_GPU)
 
     return (
         <div className="pt-8">
@@ -624,8 +714,27 @@ export default function AllResultsPage() {
                     All Results
                 </h1>
                 <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
-                    GPU regression results for every ComfyUI commit: fixed-seed workflows run on serverless RTX
-                    4090s and are compared with golden outputs, with one history per lane.
+                    {onlySmokeCells(runs.entries) ? (
+                        <>
+                            GPU regression results for ComfyUI, with one history per lane. The
+                            workflows of this lane run on serverless GPUs and are only checked to
+                            finish and to write usable files: their output is not compared with a
+                            golden.
+                        </>
+                    ) : otherLane ? (
+                        <>
+                            GPU regression results for ComfyUI, with one history per lane:
+                            fixed-seed workflows run on serverless GPUs. Reference-level workflows
+                            are compared with golden outputs, smoke-level workflows are checked to
+                            finish and to write usable files.
+                        </>
+                    ) : (
+                        <>
+                            GPU regression results for every ComfyUI commit: fixed-seed workflows
+                            run on serverless RTX 4090s and are compared with golden outputs, with
+                            one history per lane.
+                        </>
+                    )}
                 </p>
             </div>
 

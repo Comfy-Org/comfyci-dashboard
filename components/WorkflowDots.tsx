@@ -3,7 +3,7 @@ import { DOT_SHAPES, Dot } from './Dot'
 import type { DotSpec } from './Dot'
 import { badgeMeta, displayVerdict, overallDisplay } from './RegressionBadge'
 import type { DisplayState } from './RegressionBadge'
-import type { IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
+import type { CheckLevel, IndexEntry, IndexWorkflowCell, LaneInfo } from '../src/regression/types'
 import { formatGb } from '../utils/format'
 
 /** One workflow slot in a run: the index cell and its display state, or neither when it did not run. */
@@ -15,9 +15,21 @@ export interface CellState {
     state: DisplayState | null
 }
 
-/** Display state of a raw index cell against its lane golden. */
+/** Display state of a raw index cell against its lane golden; a smoke-level cell has none. */
 export const cellState = (cell: IndexWorkflowCell, wf: string, goldens?: LaneInfo['goldens']) =>
-    displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d)
+    displayVerdict(cell.v, cell.sha, goldens?.[wf]?.sha, cell.d, cell.l)
+
+/** True when any of the runs has a smoke-level cell, so a legend can name the smoke words. */
+export const hasSmokeCells = (entries: IndexEntry[]): boolean =>
+    entries.some((e) => Object.keys(e.w).some((wf) => e.w[wf].l === 'smoke'))
+
+/**
+ * True when the runs have cells and every one is smoke-level: nothing on such a lane is
+ * compared with a golden, so copy about goldens and drift is worded for it.
+ */
+export const onlySmokeCells = (entries: IndexEntry[]): boolean =>
+    hasSmokeCells(entries) &&
+    entries.every((e) => Object.keys(e.w).every((wf) => e.w[wf].l === 'smoke'))
 
 /** Display state of every cell the run has, not just the lane's fixed slots. */
 export const entryStates = (entry: IndexEntry, goldens?: LaneInfo['goldens']): DisplayState[] =>
@@ -86,11 +98,14 @@ export function dotKind(state: DisplayState | null): DotKind {
 // colour second, so a row still reads in greyscale.
 const DOT: Record<DotKind, DotSpec> = DOT_SHAPES
 
-/** Legend wording per kind; verdict texts come from the badge metadata so they never diverge. */
-export function dotText(kind: DotKind): string {
+/**
+ * Legend wording per kind; verdict texts come from the badge metadata so they never diverge.
+ * With `level` it is the wording of a smoke-level result, which shares the shape.
+ */
+export function dotText(kind: DotKind, level?: CheckLevel): string {
     if (kind === 'missing') return 'not run'
-    if (kind === 'inherited') return badgeMeta('fail', true).text
-    return badgeMeta(kind).text
+    if (kind === 'inherited') return badgeMeta({ verdict: 'fail', inherited: true, level }).text
+    return badgeMeta({ verdict: kind, inherited: false, level }).text
 }
 
 /**
@@ -103,7 +118,7 @@ export function slotText(c: CellState): { label: string; title: string } {
         const label = `${head} · not run at this commit`
         return { label, title: label }
     }
-    const meta = badgeMeta(c.state.verdict, c.state.inherited)
+    const meta = badgeMeta(c.state)
     const facts: string[] = []
     if (c.cell.mse != null && c.cell.mse > 0) facts.push(`MSE ${c.cell.mse.toFixed(4)}`)
     if (c.cell.exec != null) facts.push(`${c.cell.exec.toFixed(1)}s`)
@@ -165,8 +180,14 @@ const LEGEND: DotKind[] = [
     'missing',
 ]
 
-/** Shape key for the dots, rendered under the history table. */
-export const DotLegend: React.FC = () => (
+// A smoke-level result uses the shapes of these three kinds, under its own words.
+const SMOKE_LEGEND: DotKind[] = ['pass', 'fail', 'inherited']
+
+/**
+ * Shape key for the dots, rendered under the history table. With `smoke` (the table
+ * shows a smoke-level result) it also names what the shapes mean at smoke level.
+ */
+export const DotLegend: React.FC<{ smoke?: boolean }> = ({ smoke = false }) => (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ash-500 dark:text-smoke-800">
         {LEGEND.map((kind) => (
             <li key={kind} className="flex items-center gap-1.5">
@@ -174,5 +195,12 @@ export const DotLegend: React.FC = () => (
                 {dotText(kind)}
             </li>
         ))}
+        {smoke &&
+            SMOKE_LEGEND.map((kind) => (
+                <li key={`smoke-${kind}`} className="flex items-center gap-1.5">
+                    <WorkflowDot kind={kind} />
+                    {dotText(kind, 'smoke')}
+                </li>
+            ))}
     </ul>
 )

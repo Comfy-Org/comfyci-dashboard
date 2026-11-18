@@ -14,6 +14,7 @@ import type {
     RegressionVerdict,
 } from '../regression/types'
 import { allResultsHref } from '../regression/branchParam'
+import { latestFullRun } from '../regression/indexOrder'
 import { isCommitSha } from '../regression/validate'
 
 /** The worker's pack registry: one fixed public file, never a URL built from data. */
@@ -117,8 +118,12 @@ export function packWorkflowsOf(entry: IndexEntry | null | undefined): PackWorkf
     })
 }
 
-/** The newest run of an index head, or null when it has none. */
-export const latestRun = (head: IndexHead | null | undefined): IndexEntry | null => head?.entries[0] ?? null
+/**
+ * The lane's newest run in an index head, or null when it has none. A run that named its
+ * workflows is not the lane's run, and may hold no pack workflow at all: it is passed over.
+ */
+export const latestRun = (head: IndexHead | null | undefined): IndexEntry | null =>
+    (head ? latestFullRun(head.entries) : undefined) ?? null
 
 export const DEFAULT_BRANCH = 'master'
 
