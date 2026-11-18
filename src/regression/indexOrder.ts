@@ -27,6 +27,27 @@ export function currentCell(entries: IndexEntry[], wf: string): IndexWorkflowCel
     return undefined
 }
 
+// A run of named workflows that could not test a workflow says nothing about it.
+const saysNothing = (e: IndexEntry, wf: string): boolean => e.named === true && e.w[wf]?.v === 'infra_error'
+
+/**
+ * Where a workflow stands for the count of open failures: currentCell, read past the runs
+ * of named workflows that could not test it. Such a result closes no failing chain, so it
+ * must not take the workflow out of the count either. The latest full run still counts as
+ * it reads, tested or not.
+ */
+export function standingCell(entries: IndexEntry[], wf: string): IndexWorkflowCell | undefined {
+    for (const e of entries) {
+        if (e.w[wf] && !saysNothing(e, wf)) return e.w[wf]
+        if (e.named !== true) return undefined
+    }
+    return undefined
+}
+
+/** A workflow's newest result that says something: the fallback when its chain is open. */
+export const newestTelling = (entries: IndexEntry[], wf: string): IndexWorkflowCell | undefined =>
+    entries.find((e) => e.w[wf] && !saysNothing(e, wf))?.w[wf]
+
 /** The worker's sort time for an entry: commit time when known, else run time. */
 export const entryTime = (e: IndexEntry): number => e.m?.ct || e.t
 

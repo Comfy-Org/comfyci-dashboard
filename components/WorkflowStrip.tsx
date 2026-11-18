@@ -131,7 +131,9 @@ export const WorkflowStrip: React.FC<{
     firstBad: Record<string, FirstBad>
     /** The lane has smoke-level results only: no goldens to order by. */
     smokeOnly?: boolean
-}> = ({ branch, laneId, entries, workflows, goldens, firstBad, smokeOnly = false }) => {
+    /** When the lane's latest full run ran, also when it is older than the loaded runs. */
+    lastRunTs?: number | null
+}> = ({ branch, laneId, entries, workflows, goldens, firstBad, smokeOnly = false, lastRunTs = null }) => {
     const [showAll, setShowAll] = React.useState(false)
     if (entries.length === 0 || workflows.length === 0) return null
 
@@ -147,9 +149,16 @@ export const WorkflowStrip: React.FC<{
     const failing = states.filter((s) => s?.verdict === 'fail' || s?.verdict === 'execution_error').length
     const other = workflows.length - notRun - passing - failing
     const inLatest = latest ? workflows.filter((wf) => latest.w[wf]).length : 0
+    // A full run older than every loaded run is still the lane's latest: the tiles cannot
+    // count its workflows, and the caption says when it ran.
+    const lastTs = latest?.t ?? lastRunTs
     const caption = [
-        latest ? `${inLatest} of ${workflows.length} in the latest run` : 'no full run yet',
-        latest ? formatRelative(latest.t) : null,
+        latest
+            ? `${inLatest} of ${workflows.length} in the latest run`
+            : lastTs != null
+            ? 'latest full run'
+            : 'no full run yet',
+        lastTs != null ? formatRelative(lastTs) : null,
         `${passing} pass`,
         failing ? `${failing} failing` : null,
         other ? `${other} other` : null,

@@ -21,7 +21,7 @@ import type { CellState } from '../../components/WorkflowDots'
 import { COMFY_REPO, useIndexHeads, useLanes } from '../../src/regression/client'
 import { DEFAULT_BRANCH, allResultsHref, useBranchParam } from '../../src/regression/branchParam'
 import { headMayOmit, headWindowStart } from '../../src/regression/indexOrder'
-import { isLongCadenceLane, laneLatest, laneTag, orderedLaneIds } from '../../src/regression/lanes'
+import { isLongCadenceLane, laneRunCount, laneTag, orderedLaneIds } from '../../src/regression/lanes'
 import type { IndexEntry, IndexHead, LaneInfo } from '../../src/regression/types'
 import { commitPageHref, isBranchName, isPrNumber } from '../../src/regression/validate'
 import { orderWorkflows } from '../../src/regression/workflows'
@@ -358,11 +358,11 @@ export default function WaterfallPage() {
     const validBranch = isBranchName(branch)
     // A nightly or weekly lane tests one commit of many, so its column would read "not run"
     // on nearly every row. Such a lane gets no column, and a link to its own history once
-    // it has a run on the branch.
+    // it has a run on the branch, a run of named workflows too.
     const laneIds = router.isReady && validBranch ? orderedLaneIds(lanes) : []
     const ids = laneIds.filter((id) => !isLongCadenceLane(lanes?.lanes[id]))
     const longCadenceIds = laneIds.filter(
-        (id) => isLongCadenceLane(lanes?.lanes[id]) && laneLatest(lanes?.lanes[id], branch) != null
+        (id) => isLongCadenceLane(lanes?.lanes[id]) && laneRunCount(lanes?.lanes[id], branch) > 0
     )
     const heads = useIndexHeads(ids.map((id) => ({ branch, lane: id })))
 
