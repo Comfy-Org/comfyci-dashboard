@@ -262,7 +262,27 @@ export async function fetchTextOrNull(url: string, maxBytes = TEXT_FILE_MAX_BYTE
         res.body?.cancel().catch(() => undefined)
         return TOO_LARGE
     }
-    const text = await res.text()
+    // Without the header the size is only known while reading: stop at the cap, so a large
+    // file is never downloaded whole.
+    const reader = res.body?.getReader()
+    if (!reader) {
+        const text = await res.text()
+        return text.length > maxBytes ? TOO_LARGE : { tooLarge: false, text }
+    }
+    const decoder = new TextDecoder()
+    let text = ''
+    let bytes = 0
+    for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        bytes += value.byteLength
+        if (bytes > maxBytes) {
+            reader.cancel().catch(() => undefined)
+            return TOO_LARGE
+        }
+        text += decoder.decode(value, { stream: true })
+    }
+    text += decoder.decode()
     return text.length > maxBytes ? TOO_LARGE : { tooLarge: false, text }
 }
 
