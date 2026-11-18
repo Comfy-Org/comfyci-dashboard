@@ -8,24 +8,53 @@ export type RegressionVerdict =
     | 'infra_error'
     | 'no_baseline'
 
+// Where two texts first differ. `line` and `col` are 1-based; `ref` and `cand` are the two
+// lines there (model output: only ever rendered as text), null for a text that has ended.
+export interface TextFirstDiff {
+    file?: string
+    line?: number
+    col?: number
+    offset?: number
+    ref?: string | null
+    cand?: string | null
+}
+
 export interface ComparisonMetrics {
+    // What was compared. Absent on image comparisons, which is every run published before
+    // text workflows; "text" carries the text fields below and none of the image ones.
+    kind?: string | null
     error?: string
-    frames_compared?: number
-    frame_count_ref?: number
-    frame_count_cand?: number
+    frames_compared?: number | null
+    frame_count_ref?: number | null
+    frame_count_cand?: number | null
     identical?: boolean
-    mean_mse?: number
+    mean_mse?: number | null
     mean_psnr_db?: number | null
     min_psnr_db?: number | null
-    max_abs_diff?: number
-    mean_pct_pixels_changed?: number
-    worst_frame_index?: number
+    max_abs_diff?: number | null
+    mean_pct_pixels_changed?: number | null
+    worst_frame_index?: number | null
+    // Text comparisons: 0 to 1, 1 only when identical. Over words, unless the texts were
+    // too long for that: `similarity_basis` is then "lines" or "prefix".
+    similarity?: number | null
+    similarity_basis?: string | null
+    // How many text files had a file of the same name on the other side. 0: none was compared.
+    files_compared?: number | null
+    first_diff?: TextFirstDiff | null
+    file_count_ref?: number | null
+    file_count_cand?: number | null
 }
 
 export interface Thresholds {
     max_mean_mse: number
     min_mean_psnr_db: number
     max_pct_pixels_changed: number
+}
+
+// The one limit a text workflow can set. Without it the text must match exactly, and the
+// worker publishes thresholds_used: null.
+export interface TextThresholds {
+    min_text_similarity?: number | null
 }
 
 export interface RunTimings {
@@ -51,7 +80,7 @@ export interface WorkflowRegressionResult {
     verdict: RegressionVerdict
     vs_golden: ComparisonMetrics | null
     vs_previous: ComparisonMetrics | null
-    thresholds_used: Thresholds | null
+    thresholds_used: Thresholds | TextThresholds | null
     golden_tag: string | null
     previous_commit: string | null
     gpu_name?: string | null
@@ -63,6 +92,8 @@ export interface WorkflowRegressionResult {
     python_version?: string | null
     output_sha256?: string | null
     thumbnail?: string | null
+    // Written only for a workflow that is not an image workflow, e.g. "text".
+    output_kind?: string | null
     error?: string
 }
 
@@ -198,6 +229,8 @@ export interface IndexWorkflowCell {
     vram: number | null
     g: string | null
     th: string | null
+    // Output kind, written only when it is not image (e.g. "text"); such a cell has no MSE.
+    k?: string
     // Import status per custom-node pack, keyed by the pack's custom_nodes directory name.
     // Present only on the cells of workflows that install packs.
     cn?: Record<string, PackImportStatus>

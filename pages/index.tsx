@@ -300,6 +300,10 @@ function Trends({
                             .map((e) => ({ commit: e.c, ts: e.t, value: e.w[row.wf]?.mse ?? null }))
                             .reverse()
                         const latest = points[points.length - 1]?.value
+                        // No MSE on any run (a text workflow, or one that never got as far
+                        // as a comparison): the card keeps the verdict and the counts,
+                        // without an empty chart and a dash.
+                        const hasMse = points.some((p) => p.value != null)
                         return (
                             <div
                                 key={row.wf}
@@ -316,14 +320,18 @@ function Trends({
                                         {row.now && (
                                             <RegressionBadge verdict={row.now.verdict} inherited={row.now.inherited} />
                                         )}
-                                        <span className="font-mono text-xs tabular-nums text-ash-500 dark:text-smoke-800">
-                                            {latest == null ? '—' : latest.toFixed(3)}
-                                        </span>
+                                        {hasMse && (
+                                            <span className="font-mono text-xs tabular-nums text-ash-500 dark:text-smoke-800">
+                                                {latest == null ? '—' : latest.toFixed(3)}
+                                            </span>
+                                        )}
                                     </span>
                                 </div>
-                                <div className="mt-2">
-                                    <Sparkline points={points} />
-                                </div>
+                                {hasMse && (
+                                    <div className="mt-2">
+                                        <Sparkline points={points} />
+                                    </div>
+                                )}
                                 <div className="mt-1 text-[11px] text-ash-500 dark:text-smoke-800">
                                     {row.offGolden} of {row.scored} runs off golden
                                     {row.startedAt && (

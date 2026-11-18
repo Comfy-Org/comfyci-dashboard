@@ -6,6 +6,15 @@ import type { BadgeVerdict, DisplayState } from './RegressionBadge'
 import { Surface, SectionTitle } from './Surface'
 import { useGoldenCurrent } from '../src/regression/client'
 import type { LaneRef } from '../src/regression/client'
+import {
+    comparisonKind,
+    fileCountsDiffer,
+    imageThresholds,
+    minTextSimilarity,
+    nothingCompared,
+    similarityBasisNote,
+    similarityPct,
+} from '../src/regression/comparison'
 import type {
     ComparisonMetrics,
     FirstBad,
@@ -41,6 +50,33 @@ function metricClauses(m: ComparisonMetrics, t: Thresholds | null): { text: stri
     return out
 }
 
+// The same line for a text comparison: "text differs, similarity 97.0%, first difference at
+// line 3". `floor` is the similarity the text has to reach; null means an exact match is
+// required, so differing at all is what failed.
+function textClauses(m: ComparisonMetrics, floor: number | null): { text: string; bad: boolean }[] {
+    if (m.identical === true) return [{ text: 'text is identical', bad: false }]
+    // Only a published `false` says the texts differ. Without the key nothing is claimed,
+    // as in the metric table.
+    const out = m.identical === false ? [{ text: 'text differs', bad: floor == null }] : []
+    if (nothingCompared(m)) {
+        // No file of the same name on both sides: the worker's similarity of 0 says nothing.
+        out.push({ text: 'no matching text files', bad: true })
+    } else if (typeof m.similarity === 'number') {
+        const bad = floor != null && m.similarity < floor
+        const limit = floor != null ? ` ${bad ? '<' : '≥'} ${similarityPct(floor, true)}` : ''
+        const basis = similarityBasisNote(m)
+        out.push({ text: `similarity ${similarityPct(m.similarity, false)}${basis}${limit}`, bad })
+    }
+    if (fileCountsDiffer(m)) {
+        const files = m.file_count_cand === 1 ? 'file' : 'files'
+        out.push({ text: `${m.file_count_cand} ${files}, the golden has ${m.file_count_ref}`, bad: true })
+    }
+    if (m.first_diff?.line != null) {
+        out.push({ text: `first difference at line ${m.first_diff.line}`, bad: false })
+    }
+    return out
+}
+
 // One line for a workflow that drifted or did not execute, plus where its chain started.
 function FailingWorkflow({
     branch,
@@ -61,7 +97,12 @@ function FailingWorkflow({
     const href = (sha: string) => commitPageHref(branch, sha, lane.id)
     const vg = result.vs_golden
     const vp = result.vs_previous
-    const clauses = vg && !vg.error ? metricClauses(vg, result.thresholds_used) : []
+    const clauses =
+        !vg || vg.error
+            ? []
+            : comparisonKind(vg) === 'text'
+            ? textClauses(vg, minTextSimilarity(result.thresholds_used))
+            : metricClauses(vg, imageThresholds(result.thresholds_used))
     // current.json describes the golden blessed now, which after a re-bless is not the one
     // this run was compared against: its details only attach to a matching tag.
     const shownTag = result.golden_tag ?? golden?.tag
@@ -102,6 +143,11 @@ function FailingWorkflow({
                                 <span className={c.bad ? 'font-semibold text-red-400' : ''}>{c.text}</span>
                             </span>
                         ))
+                    ) : vg?.identical === false && comparisonKind(vg) !== 'image' ? (
+                        // A comparison with none of the metrics above, of a kind this page
+                        // does not know: it did run, and it found a difference. An image
+                        // comparison without its metrics keeps the words it had.
+                        'outputs differ'
                     ) : (
                         'no comparison'
                     )}
