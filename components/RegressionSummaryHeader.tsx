@@ -167,9 +167,10 @@ function FailingWorkflow({
                                 <span className={c.bad ? 'font-semibold text-red-400' : ''}>{c.text}</span>
                             </span>
                         ))
-                    ) : vg?.identical === false ? (
+                    ) : vg?.identical === false && comparisonKind(vg) !== 'image' ? (
                         // A comparison with none of the metrics above, of a kind this page
-                        // does not know: it did run, and it found a difference.
+                        // does not know: it did run, and it found a difference. An image
+                        // comparison without its metrics keeps the words it had.
                         'outputs differ'
                     ) : (
                         'no comparison'
