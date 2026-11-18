@@ -5,6 +5,8 @@ import {
     firstDiffAt,
     imageThresholds,
     minTextSimilarity,
+    nothingCompared,
+    similarityBasisNote,
     similarityPct,
 } from '../src/regression/comparison'
 import type { ComparisonKind } from '../src/regression/comparison'
@@ -92,7 +94,9 @@ function PlainCells({
     floor: number | null
 }) {
     // Published JSON is not shape-checked: only a number is formatted as one.
-    const similarity = typeof metrics.similarity === 'number' ? metrics.similarity : null
+    // With no pair of files there is nothing to be similar: the worker's 0 is not shown.
+    const similarity =
+        typeof metrics.similarity === 'number' && !nothingCompared(metrics) ? metrics.similarity : null
     const exact = kind === 'text' && judged && floor == null
     const below = judged && floor != null && similarity != null && similarity < floor
     return (
@@ -110,6 +114,9 @@ function PlainCells({
                 <>
                     <td className={`px-4 py-2 font-mono tabular-nums ${below ? bad : ''}`}>
                         {similarity == null ? '—' : similarityPct(similarity, false)}
+                        {similarity != null && (
+                            <span className="font-sans text-xs">{similarityBasisNote(metrics)}</span>
+                        )}
                     </td>
                     <td className="px-4 py-2 font-mono tabular-nums">
                         {firstDiffAt(metrics.first_diff) ?? '—'}

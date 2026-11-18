@@ -37,6 +37,18 @@ export function similarityPct(similarity: number, identical: boolean): string {
     return !identical && pct === '100.0' ? '>99.9%' : `${pct}%`
 }
 
+// The two bases the worker names besides words. Any other value is shown as no note.
+const BASIS_NOTES: Record<string, string> = { lines: 'by lines', prefix: 'by the shared start' }
+
+/** " by lines" or " by the shared start" after a similarity that is not a share of words. */
+export function similarityBasisNote(m: ComparisonMetrics): string {
+    const basis = m.similarity_basis
+    return typeof basis === 'string' && Object.hasOwn(BASIS_NOTES, basis) ? ` ${BASIS_NOTES[basis]}` : ''
+}
+
+/** True when no text file had a counterpart of the same name, so no similarity exists. */
+export const nothingCompared = (m: ComparisonMetrics) => m.files_compared === 0
+
 /** "line 3, col 14": where two texts first differ, as far as it was published. */
 export function firstDiffAt(d: TextFirstDiff | null | undefined): string | null {
     if (d?.line == null) return null

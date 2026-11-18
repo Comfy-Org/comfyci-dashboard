@@ -11,6 +11,8 @@ import {
     fileCountsDiffer,
     imageThresholds,
     minTextSimilarity,
+    nothingCompared,
+    similarityBasisNote,
     similarityPct,
 } from '../src/regression/comparison'
 import type {
@@ -54,10 +56,14 @@ function metricClauses(m: ComparisonMetrics, t: Thresholds | null): { text: stri
 function textClauses(m: ComparisonMetrics, floor: number | null): { text: string; bad: boolean }[] {
     if (m.identical) return [{ text: 'text is identical', bad: false }]
     const out = [{ text: 'text differs', bad: floor == null }]
-    if (typeof m.similarity === 'number') {
+    if (nothingCompared(m)) {
+        // No file of the same name on both sides: the worker's similarity of 0 says nothing.
+        out.push({ text: "text file has another name than the golden's", bad: true })
+    } else if (typeof m.similarity === 'number') {
         const bad = floor != null && m.similarity < floor
         const limit = floor != null ? ` ${bad ? '<' : '≥'} ${similarityPct(floor, true)}` : ''
-        out.push({ text: `similarity ${similarityPct(m.similarity, false)}${limit}`, bad })
+        const basis = similarityBasisNote(m)
+        out.push({ text: `similarity ${similarityPct(m.similarity, false)}${basis}${limit}`, bad })
     }
     if (fileCountsDiffer(m)) {
         const files = m.file_count_cand === 1 ? 'file' : 'files'

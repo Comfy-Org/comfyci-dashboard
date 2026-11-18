@@ -34,8 +34,12 @@ export interface ComparisonMetrics {
     max_abs_diff?: number | null
     mean_pct_pixels_changed?: number | null
     worst_frame_index?: number | null
-    // Text comparisons: 0 to 1 over words, 1 only when identical.
+    // Text comparisons: 0 to 1, 1 only when identical. Over words, unless the texts were
+    // too long for that: `similarity_basis` is then "lines" or "prefix".
     similarity?: number | null
+    similarity_basis?: string | null
+    // How many text files had a file of the same name on the other side. 0: none was compared.
+    files_compared?: number | null
     first_diff?: TextFirstDiff | null
     file_count_ref?: number | null
     file_count_cand?: number | null
