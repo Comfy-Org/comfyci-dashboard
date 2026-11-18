@@ -54,11 +54,13 @@ function metricClauses(m: ComparisonMetrics, t: Thresholds | null): { text: stri
 // line 3". `floor` is the similarity the text has to reach; null means an exact match is
 // required, so differing at all is what failed.
 function textClauses(m: ComparisonMetrics, floor: number | null): { text: string; bad: boolean }[] {
-    if (m.identical) return [{ text: 'text is identical', bad: false }]
-    const out = [{ text: 'text differs', bad: floor == null }]
+    if (m.identical === true) return [{ text: 'text is identical', bad: false }]
+    // Only a published `false` says the texts differ. Without the key nothing is claimed,
+    // as in the metric table.
+    const out = m.identical === false ? [{ text: 'text differs', bad: floor == null }] : []
     if (nothingCompared(m)) {
         // No file of the same name on both sides: the worker's similarity of 0 says nothing.
-        out.push({ text: "text file has another name than the golden's", bad: true })
+        out.push({ text: 'no matching text files', bad: true })
     } else if (typeof m.similarity === 'number') {
         const bad = floor != null && m.similarity < floor
         const limit = floor != null ? ` ${bad ? '<' : '≥'} ${similarityPct(floor, true)}` : ''

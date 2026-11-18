@@ -99,6 +99,8 @@ function PlainCells({
         typeof metrics.similarity === 'number' && !nothingCompared(metrics) ? metrics.similarity : null
     const exact = kind === 'text' && judged && floor == null
     const below = judged && floor != null && similarity != null && similarity < floor
+    // A judged text result with no pair of files failed, whatever limit applies.
+    const unmatched = kind === 'text' && judged && nothingCompared(metrics)
     return (
         <>
             <td className={`px-4 py-2 ${exact && metrics.identical === false ? bad : ''}`}>
@@ -112,12 +114,16 @@ function PlainCells({
             </td>
             {kind === 'text' && (
                 <>
-                    <td className={`px-4 py-2 font-mono tabular-nums ${below ? bad : ''}`}>
-                        {similarity == null ? '—' : similarityPct(similarity, false)}
-                        {similarity != null && (
-                            <span className="font-sans text-xs">{similarityBasisNote(metrics)}</span>
-                        )}
-                    </td>
+                    {unmatched ? (
+                        <td className={`px-4 py-2 ${bad}`}>No matching text files</td>
+                    ) : (
+                        <td className={`px-4 py-2 font-mono tabular-nums ${below ? bad : ''}`}>
+                            {similarity == null ? '—' : similarityPct(similarity, false)}
+                            {similarity != null && (
+                                <span className="font-sans text-xs">{similarityBasisNote(metrics)}</span>
+                            )}
+                        </td>
+                    )}
                     <td className="px-4 py-2 font-mono tabular-nums">
                         {firstDiffAt(metrics.first_diff) ?? '—'}
                     </td>
