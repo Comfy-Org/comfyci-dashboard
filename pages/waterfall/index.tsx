@@ -21,7 +21,7 @@ import type { CellState } from '../../components/WorkflowDots'
 import { COMFY_REPO, useIndexHeads, useLanes } from '../../src/regression/client'
 import { DEFAULT_BRANCH, allResultsHref, useBranchParam } from '../../src/regression/branchParam'
 import { headMayOmit, headWindowStart } from '../../src/regression/indexOrder'
-import { isLongCadenceLane, laneTag, orderedLaneIds } from '../../src/regression/lanes'
+import { isLongCadenceLane, laneLatest, laneTag, orderedLaneIds } from '../../src/regression/lanes'
 import type { IndexEntry, IndexHead, LaneInfo } from '../../src/regression/types'
 import { commitPageHref, isBranchName, isPrNumber } from '../../src/regression/validate'
 import { orderWorkflows } from '../../src/regression/workflows'
@@ -292,13 +292,20 @@ function LaneHeader({ col, branch }: { col: LaneColumn; branch: string }) {
     )
 }
 
+// The red filter's hover on a table with smoke-level results: a failed check is red too.
+const RED_TITLE_WITH_SMOKE =
+    'At least one lane has a regression, a failed smoke check or an execution error'
+
 function FilterBar({
     value,
     counts,
+    smoke,
     onChange,
 }: {
     value: Filter
     counts: Record<Filter, number>
+    /** The table shows a smoke-level result. */
+    smoke: boolean
     onChange: (f: Filter) => void
 }) {
     return (
@@ -314,7 +321,7 @@ function FilterBar({
                         key={f.id}
                         type="button"
                         aria-pressed={active}
-                        title={f.title}
+                        title={smoke && f.id === 'red' ? RED_TITLE_WITH_SMOKE : f.title}
                         onClick={() => onChange(f.id)}
                         className={[
                             'whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold transition-colors',
@@ -348,10 +355,13 @@ export default function WaterfallPage() {
     const lanes = lanesQuery.data
     const validBranch = isBranchName(branch)
     // A nightly or weekly lane tests one commit of many, so its column would read "not run"
-    // on nearly every row. Such a lane gets no column, and a link to its own history.
+    // on nearly every row. Such a lane gets no column, and a link to its own history once
+    // it has a run on the branch.
     const laneIds = router.isReady && validBranch ? orderedLaneIds(lanes) : []
     const ids = laneIds.filter((id) => !isLongCadenceLane(lanes?.lanes[id]))
-    const longCadenceIds = laneIds.filter((id) => isLongCadenceLane(lanes?.lanes[id]))
+    const longCadenceIds = laneIds.filter(
+        (id) => isLongCadenceLane(lanes?.lanes[id]) && laneLatest(lanes?.lanes[id], branch) != null
+    )
     const heads = useIndexHeads(ids.map((id) => ({ branch, lane: id })))
 
     const columns: LaneColumn[] = lanes
@@ -371,6 +381,7 @@ export default function WaterfallPage() {
           })
         : []
     const rows = mergeRows(columns)
+    const smokeShown = columns.some((c) => hasSmokeCells(c.head?.entries ?? []))
     const counts: Record<Filter, number> = {
         all: rows.length,
         red: rows.filter((r) => r.red).length,
@@ -459,6 +470,7 @@ export default function WaterfallPage() {
                     <FilterBar
                         value={filter}
                         counts={counts}
+                        smoke={smokeShown}
                         // A new filter starts again at page 1.
                         onChange={(f) => setView(f, 1)}
                     />
@@ -509,9 +521,7 @@ export default function WaterfallPage() {
                         </table>
                     </div>
                     <div className="flex flex-col gap-1.5 border-t border-smoke-200 dark:border-charcoal-400/40 px-5 py-2">
-                        <DotLegend
-                            smoke={columns.some((c) => hasSmokeCells(c.head?.entries ?? []))}
-                        />
+                        <DotLegend smoke={smokeShown} />
                         <span className={`text-[11px] ${dim}`}>
                             <span className="font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
                                 lanes differ

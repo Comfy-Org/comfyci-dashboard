@@ -23,6 +23,14 @@ export const cellState = (cell: IndexWorkflowCell, wf: string, goldens?: LaneInf
 export const hasSmokeCells = (entries: IndexEntry[]): boolean =>
     entries.some((e) => Object.keys(e.w).some((wf) => e.w[wf].l === 'smoke'))
 
+/**
+ * True when the runs have cells and every one is smoke-level: nothing on such a lane is
+ * compared with a golden, so copy about goldens and drift is worded for it.
+ */
+export const onlySmokeCells = (entries: IndexEntry[]): boolean =>
+    hasSmokeCells(entries) &&
+    entries.every((e) => Object.keys(e.w).every((wf) => e.w[wf].l === 'smoke'))
+
 /** Display state of every cell the run has, not just the lane's fixed slots. */
 export const entryStates = (entry: IndexEntry, goldens?: LaneInfo['goldens']): DisplayState[] =>
     Object.keys(entry.w).map((wf) => cellState(entry.w[wf], wf, goldens))

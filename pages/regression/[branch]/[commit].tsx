@@ -41,7 +41,7 @@ import {
     mergeIndexEntries,
     shardsAround,
 } from '../../../src/regression/indexOrder'
-import { isRetiredLane, orderedLaneIds } from '../../../src/regression/lanes'
+import { isLongCadenceLane, isRetiredLane, orderedLaneIds } from '../../../src/regression/lanes'
 import { heldBack, readSmoke } from '../../../src/regression/smoke'
 import type {
     CommitMeta,
@@ -49,6 +49,7 @@ import type {
     IndexHead,
     IndexWorkflowCell,
     LaneInfo,
+    RegressionSummary,
     RunEnv,
     WorkflowRegressionResult,
 } from '../../../src/regression/types'
@@ -118,22 +119,28 @@ const formatBackends = (b: RunEnv['runtime_backends']) => {
 // in. Only the index knows whether the previous run failed against the same golden, so
 // without an entry a failing run reads as a regression even when its output is
 // bit-identical to the previous run's (a re-blessed golden produces exactly that); the
-// summary line still says the output is unchanged.
+// summary line still says the output is unchanged. A smoke-level failure needs no index:
+// it is standing when the workflow's result before it had failed too, the rule the
+// worker's index uses, so a summary that is not indexed does not show it as new.
 function workflowState(
     result: WorkflowRegressionResult,
     cell: IndexWorkflowCell | undefined,
     goldenSha: string | null | undefined
 ): DisplayState {
-    return displayVerdict(
+    const standing = result.level === 'smoke' && result.prior_verdict === 'fail'
+    const state = displayVerdict(
         result.verdict,
         cell?.sha ?? result.output_sha256,
         goldenSha,
-        cell?.d ?? null,
+        cell ? cell.d : standing ? 'inherited' : null,
         result.level
     )
+    return result.worker_status === 'not_reached' ? { ...state, notReached: true } : state
 }
 
 const NO_NAMES: ReadonlySet<string> = new Set()
+// Amber for what is not a failure but qualifies a verdict: a workflow that was not tested.
+const warnNote = 'text-amber-700 dark:text-amber-400'
 
 function WorkflowCard({
     branch,
@@ -218,6 +225,11 @@ function WorkflowCard({
     const pythonVersion = run?.python_version ?? result.python_version ?? env?.python
     const backends = formatBackends(env?.runtime_backends)
 
+    // A workflow the run's deadline did not reach was not tested: nothing failed, so its
+    // card says so in its own words, not in the red box of a run that stopped.
+    const stopped =
+        !state.notReached &&
+        (result.verdict === 'execution_error' || result.verdict === 'infra_error')
     const validation = run?.validation
     const driftNotes = [
         ...(validation?.missing_nodes ?? []).map((n) => `missing node class: ${n}`),
@@ -251,7 +263,13 @@ function WorkflowCard({
                     <RegressionBadge state={state} />
                 </div>
                 <div className="text-xs text-ash-500 dark:text-smoke-800">
-                    {result.gpu_name && <span>{result.gpu_name} · </span>}
+                    {result.gpu_name && (
+                        <span>
+                            {result.gpu_name}
+                            {/* A smoke card has no golden and no previous run to name after it. */}
+                            {(!smoke || result.golden_tag || result.previous_commit) && ' · '}
+                        </span>
+                    )}
                     {result.golden_tag && <span>golden: {result.golden_tag} · </span>}
                     {result.previous_commit && (
                         <span>
@@ -321,7 +339,16 @@ function WorkflowCard({
                 </div>
             )}
 
-            {(result.verdict === 'execution_error' || result.verdict === 'infra_error') && (
+            {state.notReached && (
+                <p className={`mt-3 rounded-lg bg-amber-500/[0.08] px-3 py-2 text-sm ${warnNote}`}>
+                    <span className="font-semibold">
+                        Not tested: the run&apos;s deadline came before it could start
+                    </span>
+                    {result.error && <span className="block break-words">{result.error}</span>}
+                </p>
+            )}
+
+            {stopped && (
                 <p className="mt-3 rounded-lg bg-red-500/[0.08] px-3 py-2 text-sm text-red-400">
                     Worker status: <span className="font-mono">{result.worker_status}</span>
                     {result.error && <span> — {result.error}</span>}
@@ -584,11 +611,89 @@ function CommitNav({
     )
 }
 
+const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0
+
+/**
+ * "11 of 14 workflows have a result" for a summary that a run pushed before it had every
+ * result (`partial`), else null. The run's last summary takes its place, so one that is
+ * read belongs to a run that did not finish, or that is still going.
+ */
+function progressText(partial: unknown): string | null {
+    if (partial == null || typeof partial !== 'object' || Array.isArray(partial)) return null
+    const { done, of } = partial as { done?: unknown; of?: unknown }
+    if (!isCount(done) || !isCount(of) || done > of) return 'not every workflow has a result'
+    return `${done} of ${of} ${of === 1 ? 'workflow has' : 'workflows have'} a result`
+}
+
+/** The workflows that later runs tested again at this commit (`retests`), each once. */
+function retestedIds(retests: unknown): string[] {
+    const ids = (Array.isArray(retests) ? retests : []).flatMap((run) =>
+        run != null && Array.isArray(run.workflows) ? run.workflows : []
+    )
+    return Array.from(new Set(ids.filter((id): id is string => typeof id === 'string')))
+}
+
+const MAX_RETESTED = 10
+
+/**
+ * What qualifies the verdict of a summary that is not the lane's whole, finished run of
+ * the commit, as lines under the title: a run that did not finish, a run of named
+ * workflows only, workflows the run's deadline did not reach, and workflows a later run
+ * tested again. Renders nothing for any other summary.
+ */
+function RunNotes({
+    summary,
+    workflows,
+}: {
+    summary: RegressionSummary
+    workflows: WorkflowRegressionResult[]
+}) {
+    const progress = progressText(summary.partial)
+    const named = Array.isArray(summary.scope)
+    const late = workflows.filter((wf) => wf.worker_status === 'not_reached').length
+    const again = retestedIds(summary.retests)
+    if (!progress && !named && late === 0 && again.length === 0) return null
+    return (
+        <ul className="mt-2 flex flex-col gap-0.5 text-sm">
+            {progress && (
+                <li className={warnNote}>
+                    The run that tested this commit did not finish, or is still going: {progress}.
+                </li>
+            )}
+            {named && (
+                <li className={warnNote}>
+                    Only the workflows named for this run were tested at this commit.
+                </li>
+            )}
+            {late > 0 && (
+                <li className={warnNote}>
+                    {late === 1 ? '1 workflow was' : `${late} workflows were`} not tested: the
+                    run&apos;s deadline came before {late === 1 ? 'it' : 'they'} could start.
+                </li>
+            )}
+            {again.length > 0 && (
+                <li className="break-words text-ash-500 dark:text-smoke-800">
+                    Tested again by a later run:{' '}
+                    <span className="font-mono">{again.slice(0, MAX_RETESTED).join(', ')}</span>
+                    {again.length > MAX_RETESTED && ` and ${again.length - MAX_RETESTED} more`}.
+                </li>
+            )}
+        </ul>
+    )
+}
+
 const notRun = (commit: string): LanePillStatus => ({
     kind: 'missing',
     text: `not run at ${commit.slice(0, 7)}`,
     note: 'not run',
     muted: true,
+})
+
+// A run that did not finish has no green verdict yet: what it has so far may all pass.
+const notFinished = (commit: string): LanePillStatus => ({
+    kind: 'missing',
+    text: `the run at ${commit.slice(0, 7)} did not finish, or is still going`,
+    note: 'not finished',
 })
 
 const verdictStatus = (overall: DisplayState, commit: string): LanePillStatus => ({
@@ -854,6 +959,11 @@ export default function RegressionCommitPage() {
     const infra =
         summary.has_infra_error ?? workflows.some((wf) => wf.verdict === 'infra_error')
     const overall = overallDisplay(summary.overall, Object.values(states), infra)
+    // Green so far is not green: for a run that did not finish, the title and the lane's
+    // pill show no verdict, and the notes under the title say how far the run got.
+    const greenSoFar = progressText(summary.partial) != null && overall.verdict === 'pass'
+    // Nothing on a page of smoke-level results only is compared with a golden.
+    const smokeOnly = workflows.length > 0 && workflows.every((wf) => wf.level === 'smoke')
     // The index entry does not carry parents: leave them unknown rather than "none".
     const meta: CommitMeta | null =
         summary.commit_meta ??
@@ -871,14 +981,15 @@ export default function RegressionCommitPage() {
                         <span>
                             Commit <span className="font-mono">{commit.slice(0, 7)}</span>
                         </span>
-                        <RegressionBadge state={overall} />
+                        {!greenSoFar && <RegressionBadge state={overall} />}
                     </h1>
                     <p className="mt-1 text-sm text-ash-500 dark:text-smoke-800">
-                        Fixed-seed output comparison on{' '}
+                        {smokeOnly ? 'Smoke-level checks' : 'Fixed-seed output comparison'} on{' '}
                         <span className="font-mono">{branch}</span> ·{' '}
                         {new Date(summary.run_ts * 1000).toLocaleString()}
                         {lane.info && <> · {lane.info.label}</>}
                     </p>
+                    <RunNotes summary={summary} workflows={workflows} />
                 </div>
                 <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                     {meta && <CommitMetaChip meta={meta} />}
@@ -893,7 +1004,7 @@ export default function RegressionCommitPage() {
                     </a>
                 </div>
             </div>
-            {switcher(verdictStatus(overall, commit))}
+            {switcher(greenSoFar ? notFinished(commit) : verdictStatus(overall, commit))}
 
             {lane.missing && (
                 <LaneMissingNotice missing={lane.missing} showing={lane.info?.label ?? lane.id} />
@@ -913,6 +1024,7 @@ export default function RegressionCommitPage() {
                 summary={summary}
                 states={states}
                 head={head}
+                longCadence={isLongCadenceLane(lane.info)}
             />
 
             <div className="flex flex-col gap-5">

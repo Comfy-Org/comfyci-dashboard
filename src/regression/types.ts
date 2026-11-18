@@ -153,7 +153,16 @@ export interface WorkflowRegressionResult {
     // harness could not start has the level and no `smoke`.
     level?: CheckLevel
     smoke?: SmokeResult | null
+    // The workflow's last pass or failure before this run, when it had one.
+    prior_verdict?: string | null
     error?: string
+}
+
+// A later run that tested some workflows again at a commit the lane already had a result
+// for. Their cells in the summary are that run's.
+export interface Retest {
+    run_ts?: number
+    workflows?: string[]
 }
 
 export interface RegressionSummary {
@@ -169,6 +178,13 @@ export interface RegressionSummary {
     lane?: string | null
     env?: RunEnv | null
     workflows: Record<string, WorkflowRegressionResult>
+    // Written only in the cases named. `partial`: the run pushed this summary before it
+    // had every result, so it did not finish or is still going. `scope`: the run tested
+    // only the workflows it named, so this is not the lane's result of the commit.
+    // `retests`: later runs that tested workflows again at this commit.
+    partial?: { done?: number; of?: number } | null
+    scope?: string[]
+    retests?: Retest[]
 }
 
 export interface LatestPointer {

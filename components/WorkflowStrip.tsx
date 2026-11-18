@@ -34,8 +34,12 @@ function Tile({
     const state = cell ? cellState(cell, wf, goldens) : null
     const runs = entries.filter((e) => e.w[wf])
     // Newest run where this workflow's drift or execution failure began; a drift that
-    // was later accepted still has one, and is labelled as such.
-    const lastDrift = runs.find((e) => driftStartedHere(e.w[wf]))
+    // was later accepted still has one, and is labelled as such. A smoke check has no
+    // drift that begins: the newest run that failed one is named, standing or not.
+    const lastDrift = runs.find((e) => {
+        const c = e.w[wf]
+        return driftStartedHere(c) || (c.l === 'smoke' && c.v === 'fail')
+    })
     const lastDriftState = lastDrift ? cellState(lastDrift.w[wf], wf, goldens) : null
     // A smoke-level workflow has no golden and nothing that drifts: its tile names no
     // tag, and its last line counts failed smoke checks.
@@ -124,7 +128,9 @@ export const WorkflowStrip: React.FC<{
     goldens?: LaneInfo['goldens']
     /** Open first_bad chains, already filtered by the page's banner rule. */
     firstBad: Record<string, FirstBad>
-}> = ({ branch, laneId, entries, workflows, goldens, firstBad }) => {
+    /** The lane has smoke-level results only: no goldens to order by. */
+    smokeOnly?: boolean
+}> = ({ branch, laneId, entries, workflows, goldens, firstBad, smokeOnly = false }) => {
     const [showAll, setShowAll] = React.useState(false)
     const latest = entries[0]
     if (!latest || workflows.length === 0) return null
@@ -157,7 +163,14 @@ export const WorkflowStrip: React.FC<{
         <Surface className="mb-6 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <SectionTitle>Workflows</SectionTitle>
-                <span className="text-[11px] text-ash-500 dark:text-smoke-800" title="Lane order: blessed goldens first, then unblessed ids">
+                <span
+                    className="text-[11px] text-ash-500 dark:text-smoke-800"
+                    title={
+                        smokeOnly
+                            ? 'Lane order: sorted by id'
+                            : 'Lane order: blessed goldens first, then unblessed ids'
+                    }
+                >
                     {caption}
                 </span>
             </div>

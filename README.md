@@ -14,16 +14,20 @@ Every page except Legacy reads static JSON that the worker repo ([Comfy-Org/comf
 
 Lanes come from `regression/index/lanes.json`, which the worker builds from its [`manifest/lanes.json`](https://github.com/Comfy-Org/comfyci-runpod-worker/blob/main/manifest/lanes.json). A lane with cadence `retired` runs no more but keeps its history readable: it is listed last, gets a neutral note instead of a staleness warning, and offers no re-bless commands.
 
-A lane with cadence `nightly` or `weekly` tests one commit of many. It has no column on the Waterfall, which links to it on All Results instead. Its freshness banner turns amber after 36 hours or 8 days without a run. When a failing chain started in a run that covered more than one commit, the "failing since" line says how many, with GitHub's compare link, and names no pull request, author or subject: that commit is only the newest of them.
+A lane with cadence `nightly` or `weekly` tests one commit of many. It has no column on the Waterfall, which links to it on All Results instead once it has a run on the branch. Its freshness banner turns amber after 36 hours or 8 days without a run. When a failing chain started in a run that covered more than one commit, the "failing since" line names no pull request, author or subject: that commit is only the newest of them. It links GitHub's compare page from the last good commit to that one, and says how many commits the run covered while the published count is of that range. A later run that passes at an older commit moves "last good" forward, and the line then reads "an unknown number of commits". A chain that never passed on such a lane reads as the workflow's first run on the lane.
+
+The commit page reads four more things a nightly or weekly run can publish, and says each under its title. A summary with `partial` is of a run that did not finish, or is still going: the page says how many workflows have a result, and shows no green verdict. A summary with `scope` is of a run that tested only the workflows it named. A workflow with worker status `not_reached` was not tested, because the run's deadline came before it could start. Workflows under `retests` were tested again by a later run.
 
 ### Smoke-level workflows
 
 A workflow the worker runs at smoke level (`"level": "smoke"` in its manifest) is only checked to finish and to write usable files. Its output is not compared with a golden. The pages read `level` on a result and `l` on an index cell, and show such a result with words of its own:
 
 - The badge reads "Smoke pass" or "Smoke check failed", and "Smoke check failed (inherited)" when the workflow's result before it had failed too. An execution or infra error reads as on any workflow.
+- A run's overall badge takes the smoke words when smoke-level results alone decide it. A run of smoke-level workflows only reads "Infra Error" when nothing failed and one of them was not tested, and "Execution Error" when its only new failures are workflows that did not finish. A green run with results of both levels reads "Pass", with a hover that names both.
+- On a lane with smoke-level results only, All Results says "Open Failures" where other lanes say "Open Regressions", and its intro names no golden.
 - It has no golden: no golden tag, no accepted drift, no re-bless commands, and no place in "Drift vs golden" on All Results.
 - Its commit-page card has a "Checked files" table where other cards have the metric table: one row per output file with its type, size, sha256 and what the check measured, under the sentences that say what failed. A file the worker did not send reads "not sent, checked by size only". A file the run kept in its artifact (a large output that does not repeat) is listed without a link and is left out of the pictures.
-- A failing chain of a smoke-level workflow that never passed on the lane says that it is the first result, and names no pull request or author.
+- A failing chain of a smoke-level workflow that never passed on the lane says that it is the workflow's first run on the lane, and names no pull request or author.
 
 File names and problem sentences come from the worker's run. They are shown as text only, and a file is linked only when its name is a plain file name.
 

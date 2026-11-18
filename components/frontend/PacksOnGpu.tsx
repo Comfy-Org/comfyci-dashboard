@@ -311,6 +311,8 @@ export const PacksOnGpu: React.FC<{ packs: PackLanesState }> = ({ packs }) => {
 
     const caption = lanes.length === 1 ? laneCaption(lanes[0].info) : `${lanes.length} lanes`
     const legend = presentKinds(lanes)
+    // Pack workflows at smoke level only: nothing here is compared with a golden.
+    const smokeOnly = lanes.every((lane) => lane.workflows.every((pw) => pw.cell.l === 'smoke'))
 
     return (
         <Surface className="mb-6 p-5">
@@ -329,9 +331,22 @@ export const PacksOnGpu: React.FC<{ packs: PackLanesState }> = ({ packs }) => {
                 </ul>
             )}
             <p className={`mt-3 text-[11px] ${dim}`}>
-                The core GPU regression installs these packs at the commits the frontend{"'"}s custom-node gate pins
-                and bit-compares the outputs against goldens on every core commit; a pack that fails to import turns
-                its workflow red even when the workflow uses none of its nodes.
+                {smokeOnly ? (
+                    <>
+                        The core GPU regression installs these packs at the commits the
+                        frontend{"'"}s custom-node gate pins and checks on each run of the lane
+                        that the workflows finish and write usable files; a pack that fails to
+                        import turns its workflow red even when the workflow uses none of its
+                        nodes.
+                    </>
+                ) : (
+                    <>
+                        The core GPU regression installs these packs at the commits the
+                        frontend{"'"}s custom-node gate pins and bit-compares the outputs against
+                        goldens on every core commit; a pack that fails to import turns its
+                        workflow red even when the workflow uses none of its nodes.
+                    </>
+                )}
                 {registry.isError && ' Pack pins could not be loaded from the registry.'}
             </p>
             <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium">

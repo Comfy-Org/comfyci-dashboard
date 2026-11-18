@@ -12,6 +12,8 @@ const th = 'px-4 py-2 font-semibold'
 const td = 'px-4 py-2 align-top'
 const quiet = 'text-ash-500 dark:text-smoke-800'
 const link = 'hover:text-sapphire-700 dark:hover:text-electric hover:underline'
+// Dark red on the light theme: the lighter red is too faint to read on white.
+const bad = 'text-red-600 dark:text-red-400'
 
 function FileRow({
     file,
@@ -49,7 +51,7 @@ function FileRow({
             <td className={`${td} whitespace-nowrap font-mono tabular-nums`}>
                 {typeof file.bytes === 'number' ? formatBytes(file.bytes) : 'unknown'}
             </td>
-            <td className={`${td} min-w-[14rem] ${failed ? 'font-semibold text-red-400' : ''}`}>
+            <td className={`${td} min-w-[14rem] ${failed ? `font-semibold ${bad}` : ''}`}>
                 {smokeFacts(file)}
             </td>
             <td
@@ -92,7 +94,7 @@ export const SmokeChecks: React.FC<{
     return (
         <div className="flex flex-col gap-3">
             {problems.length > 0 && (
-                <div className="rounded-lg bg-red-500/[0.08] px-3 py-2 text-sm text-red-400">
+                <div className={`rounded-lg bg-red-500/[0.08] px-3 py-2 text-sm ${bad}`}>
                     <span className="font-semibold">Smoke check failed</span>
                     <ul className="mt-1 list-disc pl-5">
                         {problems.map((p, i) => (

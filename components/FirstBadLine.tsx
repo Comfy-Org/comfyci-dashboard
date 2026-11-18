@@ -18,28 +18,45 @@ import { shortDate } from '../utils/time'
  * lead-in and colour. GitHub links are only built from a PR number and a full SHA.
  *
  * Two chains name no PR, author or subject, because their first commit is not known to
- * be the cause. One whose first run covered more than one commit (a nightly or weekly
- * lane) says how many, with the compare link when the published one is GitHub's. One of
- * a smoke-level workflow that never passed on the lane says it is the first result.
+ * be the cause. One that never passed on the lane says it is the workflow's first run:
+ * a smoke-level chain on any lane, and any chain on a nightly or weekly lane. One whose
+ * first run covered more than one commit (a nightly or weekly lane) links the commits
+ * after the last good one, and says how many while the published count is of those.
  */
 export const FirstBadLine: React.FC<{
     fb: FirstBad
     branch: string
     laneId: string
+    /** The lane is nightly or weekly: a run of it covers many commits. */
+    longCadence?: boolean
     /** Subject of the first bad commit, when the caller has it from the index. */
     subject?: string
     /** Classes for the details after the commit and its origin. */
     dimClass?: string
-}> = ({ fb, branch, laneId, subject, dimClass = 'text-ash-500 dark:text-smoke-800' }) => {
+}> = ({
+    fb,
+    branch,
+    laneId,
+    longCadence = false,
+    subject,
+    dimClass = 'text-ash-500 dark:text-smoke-800',
+}) => {
     const href = (sha: string) => commitPageHref(branch, sha, laneId)
     const pr = isPrNumber(fb.pr) ? fb.pr : null
+    const firstRun = !fb.prev_good && (fb.level === 'smoke' || longCadence)
     const range = fb.range != null && typeof fb.range === 'object' ? fb.range : null
     const covered = range != null && typeof range.n === 'number' && range.n > 0 ? range.n : null
     // A range of one commit names its commit, as every chain of a per-commit lane does.
-    const batch = range != null && covered !== 1
-    const compare = batch ? comfyCompareUrl(range?.url) : null
-    const commits = covered != null ? `${covered} commits` : 'an unknown number of commits'
-    const firstResult = !batch && fb.level === 'smoke' && !fb.prev_good
+    const batch = !firstRun && range != null && covered !== 1
+    // Built from the two SHAs, not taken from the published link. The published range is
+    // that of the chain's first run: a later run that passed at an older commit moves
+    // "last good" forward, and the count no longer fits the commits that are left.
+    const compare =
+        batch && isCommitSha(fb.prev_good) && isCommitSha(fb.commit)
+            ? `${COMFY_REPO}/compare/${fb.prev_good}...${fb.commit}`
+            : null
+    const counted = covered != null && compare != null && comfyCompareUrl(range?.url) === compare
+    const commits = counted ? `${covered} commits` : 'an unknown number of commits'
     return (
         <>
             <Link href={href(fb.commit)} className="font-mono font-semibold hover:underline">
@@ -65,10 +82,10 @@ export const FirstBadLine: React.FC<{
                         )
                     </span>
                 </>
-            ) : firstResult ? (
+            ) : firstRun ? (
                 <>
                     {' '}
-                    <span>(the first result of this workflow on the lane)</span>
+                    <span>(the workflow&apos;s first run on this lane)</span>
                 </>
             ) : (
                 (pr != null || fb.author) && (
@@ -92,7 +109,7 @@ export const FirstBadLine: React.FC<{
                     </>
                 )
             )}
-            {subject && !batch && !firstResult && (
+            {subject && !batch && !firstRun && (
                 <>
                     {' '}
                     <span

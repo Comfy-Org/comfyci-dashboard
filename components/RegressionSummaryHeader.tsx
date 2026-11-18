@@ -86,6 +86,7 @@ function FailingWorkflow({
     state,
     firstBad,
     firstBadSubject,
+    longCadence,
 }: {
     branch: string
     lane: LaneRef
@@ -93,6 +94,7 @@ function FailingWorkflow({
     state: DisplayState
     firstBad?: FirstBad
     firstBadSubject?: string
+    longCadence: boolean
 }) {
     // A smoke-level result has no golden: none is asked for, even when the workflow left
     // an old one behind, and its line names the first problem its checks found.
@@ -137,7 +139,7 @@ function FailingWorkflow({
                     {smoke.problems.length > 0 && (
                         <>
                             :{' '}
-                            <span className="font-semibold text-red-400">
+                            <span className="font-semibold text-red-600 dark:text-red-400">
                                 {problemText(smoke.problems[0])}
                             </span>
                         </>
@@ -195,6 +197,7 @@ function FailingWorkflow({
                         fb={firstBad}
                         branch={branch}
                         laneId={lane.id}
+                        longCadence={longCadence}
                         subject={firstBadSubject}
                     />
                 </p>
@@ -211,7 +214,9 @@ export const RegressionSummaryHeader: React.FC<{
     summary: RegressionSummary
     states: Record<string, DisplayState>
     head?: IndexHead | null
-}> = ({ branch, commit, lane, summary, states, head }) => {
+    /** The lane is nightly or weekly: a run of it covers many commits. */
+    longCadence?: boolean
+}> = ({ branch, commit, lane, summary, states, head, longCadence = false }) => {
     const results = Object.values(summary.workflows).sort((a, b) =>
         a.workflow_id.localeCompare(b.workflow_id)
     )
@@ -255,7 +260,7 @@ export const RegressionSummaryHeader: React.FC<{
                 {results.some((r) => r.level === 'smoke') && (
                     <p className="basis-full text-xs text-ash-500 dark:text-smoke-800">
                         Smoke-level workflows are only checked to finish and to write a usable
-                        file. Their output is not compared with an approved reference.
+                        file. Their output is not compared with a golden.
                     </p>
                 )}
             </div>
@@ -272,6 +277,7 @@ export const RegressionSummaryHeader: React.FC<{
                                 state={states[r.workflow_id] ?? { verdict: r.verdict, inherited: false }}
                                 firstBad={fb}
                                 firstBadSubject={fb ? subjectOf(fb) : undefined}
+                                longCadence={longCadence}
                             />
                         )
                     })}

@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import React from 'react'
 import { RegressionBadge, changedHere, overallDisplay } from './RegressionBadge'
+import type { DisplayState } from './RegressionBadge'
 import { Surface } from './Surface'
 import { DotLegend, WorkflowDots, cellStates, entryStates, hasSmokeCells } from './WorkflowDots'
 import { COMFY_REPO } from '../src/regression/client'
-import type { CommitRange, IndexEntry, LaneInfo } from '../src/regression/types'
+import type { CommitRange, FirstBad, IndexEntry, LaneInfo } from '../src/regression/types'
 import {
     comfyCompareUrl,
     commitPageHref,
@@ -18,11 +19,22 @@ import { formatRelative } from '../utils/time'
  * The commits a run covered for one workflow, after a failure that started at that run:
  * on a nightly or weekly lane any of them may be the cause. Nothing for a range of one
  * commit or of an unknown size. Linked only when the published link is GitHub's compare page.
+ * `since` is the last good commit of the open chain that starts at this run: a range that
+ * does not start there is from before a later run passed at an older commit, and is left out.
  */
-function CoveredCommits({ range }: { range: CommitRange | undefined }) {
+function CoveredCommits({
+    range,
+    commit,
+    since,
+}: {
+    range: CommitRange | undefined
+    commit: string
+    since?: string | null
+}) {
     const n = range != null && typeof range === 'object' ? range.n : null
     if (typeof n !== 'number' || n <= 1) return null
     const href = comfyCompareUrl(range?.url)
+    if (since && href !== `${COMFY_REPO}/compare/${since}...${commit}`) return null
     const text = `${n} commits since its last result`
     const quiet = 'text-[11px] text-ash-500 dark:text-smoke-800'
     if (!href) return <span className={quiet}>{text}</span>
@@ -44,12 +56,14 @@ function HistoryRow({
     entry,
     workflows,
     goldens,
+    firstBad,
 }: {
     branch: string
     laneId: string
     entry: IndexEntry
     workflows: string[]
     goldens?: LaneInfo['goldens']
+    firstBad?: Record<string, FirstBad>
 }) {
     const cells = cellStates(entry, workflows, goldens)
     // Overall and the row tint read every cell the run has, not just the lane's slots,
@@ -68,6 +82,12 @@ function HistoryRow({
                 : []
         )
         .sort((a, b) => Number(changedHere(b.state)) - Number(changedHere(a.state)))
+    // The open chain of a workflow, when it starts at this run.
+    const chainFrom = (wf: string) => (firstBad?.[wf]?.commit === entry.c ? firstBad[wf] : null)
+    // The commits a run covered are named where the failure began. Every execution error
+    // reads as changed, a standing one too: one is placed by its open chain.
+    const beganHere = (wf: string, state: DisplayState) =>
+        state.verdict === 'execution_error' ? chainFrom(wf) != null : changedHere(state)
     const commitHref = commitPageHref(branch, entry.c, laneId)
     // Built here rather than taken from the index's range.url: the page should not
     // navigate to whatever string the published JSON carries.
@@ -176,8 +196,12 @@ function HistoryRow({
                                         {a.cell.exec.toFixed(1)}s
                                     </span>
                                 )}
-                                {changedHere(a.state) && (
-                                    <CoveredCommits range={entry.wr?.[a.wf]} />
+                                {beganHere(a.wf, a.state) && (
+                                    <CoveredCommits
+                                        range={entry.wr?.[a.wf]}
+                                        commit={entry.c}
+                                        since={chainFrom(a.wf)?.prev_good}
+                                    />
                                 )}
                             </li>
                         ))}
@@ -187,6 +211,15 @@ function HistoryRow({
         </tr>
     )
 }
+
+// The Workflows column's hover, and its wording on a lane of smoke-level workflows only,
+// which has no goldens.
+const SLOTS_TITLE =
+    'One dot per workflow in lane order (blessed goldens first, then unblessed ids); hover ' +
+    'a dot for its verdict, timings and golden. The numbers match the Workflows strip above.'
+const SMOKE_SLOTS_TITLE =
+    'One dot per workflow, sorted by id; hover a dot for its verdict and timings. ' +
+    'The numbers match the Workflows strip above.'
 
 /**
  * Newest-first run history for one branch and lane. Each row carries every workflow
@@ -199,7 +232,11 @@ export const HistoryTable: React.FC<{
     entries: IndexEntry[]
     workflows: string[]
     goldens?: LaneInfo['goldens']
-}> = ({ branch, laneId, entries, workflows, goldens }) => (
+    /** Open first_bad chains, already filtered by the page's banner rule. */
+    firstBad?: Record<string, FirstBad>
+    /** The lane has smoke-level results only: no goldens to name. */
+    smokeOnly?: boolean
+}> = ({ branch, laneId, entries, workflows, goldens, firstBad, smokeOnly = false }) => (
     <Surface className="overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left text-sm">
@@ -210,7 +247,7 @@ export const HistoryTable: React.FC<{
                         <th className="px-5 py-3 font-semibold">Overall</th>
                         <th
                             className="px-5 py-3 font-semibold"
-                            title="One dot per workflow in lane order (blessed goldens first, then unblessed ids); hover a dot for its verdict, timings and golden. The numbers match the Workflows strip above."
+                            title={smokeOnly ? SMOKE_SLOTS_TITLE : SLOTS_TITLE}
                         >
                             Workflows{' '}
                             <span className="normal-case tracking-normal">({workflows.length})</span>
@@ -226,6 +263,7 @@ export const HistoryTable: React.FC<{
                             entry={entry}
                             workflows={workflows}
                             goldens={goldens}
+                            firstBad={firstBad}
                         />
                     ))}
                 </tbody>
